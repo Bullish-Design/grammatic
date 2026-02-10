@@ -1,0 +1,11 @@
+{
+  "root_node": {
+    "type": "source_file",
+    "children": [
+      {
+        "type": "ERROR",
+        "children": []
+      }
+    ]
+  }
+}
