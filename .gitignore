@@ -220,6 +220,8 @@ __marimo__/
 
 # Grammatic build outputs and runtime logs
 build/
+!scripts/build/
+!scripts/build/*.sh
 *.so
 logs/
 *.jsonl
