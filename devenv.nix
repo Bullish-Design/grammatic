@@ -5,7 +5,6 @@
     tree-sitter
     gcc
     gnumake
-    python312
     uv
     jq
     git
@@ -15,7 +14,9 @@
 
   languages.python = {
     enable = true;
-    package = pkgs.python312;
+    version = "3.13";
+    venv.enable = true;
+    uv.enable = true;
   };
 
   env = {
