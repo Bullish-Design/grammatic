@@ -1,0 +1,15 @@
+{
+  "root_node": {
+    "type": "source_file",
+    "children": [
+      {
+        "type": "line",
+        "children": []
+      },
+      {
+        "type": "line",
+        "children": []
+      }
+    ]
+  }
+}
