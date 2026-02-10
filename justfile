@@ -85,6 +85,102 @@ test-grammar GRAMMAR:
 test GRAMMAR: build GRAMMAR
     just parse "{{GRAMMAR}}" "{{project_root}}/tests/fixtures/sample_{{GRAMMAR}}.txt"
 
+
+query-builds N="10":
+    #!/usr/bin/env bash
+    if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
+        jq -c '.' "{{project_root}}/logs/builds.jsonl" | tail -n "{{N}}"
+    fi
+
+query-builds-for GRAMMAR:
+    #!/usr/bin/env bash
+    if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
+        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/builds.jsonl"
+    fi
+
+query-parses N="10":
+    #!/usr/bin/env bash
+    if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
+        jq -c '.' "{{project_root}}/logs/parses.jsonl" | tail -n "{{N}}"
+    fi
+
+query-failures:
+    #!/usr/bin/env bash
+    if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
+        jq -c 'select(.has_errors == true)' "{{project_root}}/logs/parses.jsonl"
+    fi
+
+query-parses-for GRAMMAR:
+    #!/usr/bin/env bash
+    if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
+        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl"
+    fi
+
+build-success-rate GRAMMAR:
+    #!/usr/bin/env bash
+    if [ ! -f "{{project_root}}/logs/builds.jsonl" ]; then
+        echo '[]'
+        exit 0
+    fi
+    jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/builds.jsonl" \
+        | jq -s "group_by(.build_success) | map({success: .[0].build_success, count: length})"
+
+avg-parse-time GRAMMAR:
+    #!/usr/bin/env bash
+    if [ ! -f "{{project_root}}/logs/parses.jsonl" ]; then
+        echo "0"
+        exit 0
+    fi
+    jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl" \
+        | jq -s 'if length == 0 then 0 else (map(.parse_time_ms) | add / length) end'
+
+slowest-parses N="10":
+    #!/usr/bin/env bash
+    if [ ! -f "{{project_root}}/logs/parses.jsonl" ]; then
+        echo '[]'
+        exit 0
+    fi
+    jq -c '.' "{{project_root}}/logs/parses.jsonl" \
+        | jq -s "sort_by(.parse_time_ms) | reverse | .[:{{N}}]"
+
+grammar-versions GRAMMAR:
+    #!/usr/bin/env bash
+    if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
+        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl" \
+            | jq -r '.grammar_version' \
+            | sort | uniq -c
+    fi
+
+export-logs OUTPUT:
+    #!/usr/bin/env bash
+    just check-dir "{{OUTPUT}}" "Error: output directory not found: {{OUTPUT}}"
+
+    shopt -s nullglob
+    log_files=("{{project_root}}"/logs/*.jsonl)
+    if [ "${#log_files[@]}" -eq 0 ]; then
+        echo "Error: no log files found in {{project_root}}/logs" >&2
+        exit 1
+    fi
+
+    timestamp=$(date +%Y%m%d-%H%M%S)
+    archive="{{OUTPUT}}/grammatic-logs-${timestamp}.tar.gz"
+    tar czf "$archive" -C "{{project_root}}" logs
+    echo "Logs exported to $archive"
+
+validate-logs:
+    #!/usr/bin/env bash
+    echo "Validating builds.jsonl..."
+    if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
+        jq -e '.' "{{project_root}}/logs/builds.jsonl" > /dev/null || echo "builds.jsonl has invalid JSON"
+    fi
+
+    echo "Validating parses.jsonl..."
+    if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
+        jq -e '.' "{{project_root}}/logs/parses.jsonl" > /dev/null || echo "parses.jsonl has invalid JSON"
+    fi
+
+    echo "Log validation complete"
+
 clean:
     find "{{project_root}}/build" -type f -name '*.so' -delete
 
