@@ -1,0 +1,25 @@
+==================
+Single line
+==================
+
+hello
+
+---
+
+(source_file
+  (line))
+
+==================
+Multiple lines
+==================
+
+first
+second
+third
+
+---
+
+(source_file
+  (line)
+  (line)
+  (line))
