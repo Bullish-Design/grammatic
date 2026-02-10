@@ -19,6 +19,7 @@ generate GRAMMAR:
     tree-sitter generate --cwd "{{project_root}}/grammars/{{GRAMMAR}}"
 
 build GRAMMAR: init
+    #!/usr/bin/env bash
     grammar_dir="{{project_root}}/grammars/{{GRAMMAR}}"
     output_so="{{project_root}}/build/{{GRAMMAR}}.so"
 
