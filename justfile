@@ -8,7 +8,10 @@ _default:
     @just --list
 
 init:
-    mkdir -p "{{project_root}}/grammars" "{{project_root}}/build" "{{project_root}}/logs"
+    mkdir -p "{{project_root}}/grammars" "{{project_root}}/build" "{{project_root}}/logs" "{{project_root}}/schemas" "{{project_root}}/tests/fixtures"
+    git -C "{{project_root}}" submodule init
+    echo "Grammatic initialized"
+    echo "Add grammars with: just add-grammar NAME URL"
 
 add-grammar NAME URL:
     just check-missing "{{project_root}}/grammars/{{NAME}}" "Error: grammars/{{NAME}} already exists"
