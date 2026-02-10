@@ -1,5 +1,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
+import "scripts/just/path_checks.just"
+
 project_root := justfile_directory()
 
 _default:
@@ -9,27 +11,18 @@ init:
     mkdir -p "{{project_root}}/grammars" "{{project_root}}/build" "{{project_root}}/logs"
 
 add-grammar NAME URL:
-    if [ -e "{{project_root}}/grammars/{{NAME}}" ]; then
-        echo "Error: grammars/{{NAME}} already exists" >&2
-        exit 1
-    fi
+    just check-missing "{{project_root}}/grammars/{{NAME}}" "Error: grammars/{{NAME}} already exists"
     git -C "{{project_root}}" submodule add "{{URL}}" "grammars/{{NAME}}"
 
 generate GRAMMAR:
-    if [ ! -d "{{project_root}}/grammars/{{GRAMMAR}}" ]; then
-        echo "Error: grammar directory not found: grammars/{{GRAMMAR}}" >&2
-        exit 1
-    fi
+    just check-dir "{{project_root}}/grammars/{{GRAMMAR}}" "Error: grammar directory not found: grammars/{{GRAMMAR}}"
     tree-sitter generate --cwd "{{project_root}}/grammars/{{GRAMMAR}}"
 
 build GRAMMAR: init
     grammar_dir="{{project_root}}/grammars/{{GRAMMAR}}"
     output_so="{{project_root}}/build/{{GRAMMAR}}.so"
 
-    if [ ! -d "$grammar_dir" ]; then
-        echo "Error: grammar directory not found: $grammar_dir" >&2
-        exit 1
-    fi
+    just check-dir "$grammar_dir" "Error: grammar directory not found: $grammar_dir"
 
     start_ms=$(python -c 'import time; print(int(time.time() * 1000))')
     "{{project_root}}/scripts/build_grammar.sh" "$grammar_dir" "$output_so"
@@ -51,16 +44,8 @@ build GRAMMAR: init
 parse GRAMMAR SOURCE: init
     grammar_so="{{project_root}}/build/{{GRAMMAR}}.so"
 
-    if [ ! -f "$grammar_so" ]; then
-        echo "Error: built grammar not found: $grammar_so" >&2
-        echo "Run 'just build {{GRAMMAR}}' first" >&2
-        exit 1
-    fi
-
-    if [ ! -f "{{SOURCE}}" ]; then
-        echo "Error: source file not found: {{SOURCE}}" >&2
-        exit 1
-    fi
+    just check-file "$grammar_so" "Error: built grammar not found: $grammar_so. Run 'just build {{GRAMMAR}}' first"
+    just check-file "{{SOURCE}}" "Error: source file not found: {{SOURCE}}"
 
     parse_result=$(mktemp)
     start_ms=$(python -c 'import time; print(int(time.time() * 1000))')
