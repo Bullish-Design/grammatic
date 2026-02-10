@@ -25,7 +25,7 @@ build GRAMMAR: init
     just check-dir "$grammar_dir" "Error: grammar directory not found: $grammar_dir"
 
     start_ms=$(python -c 'import time; print(int(time.time() * 1000))')
-    "{{project_root}}/scripts/build_grammar.sh" "$grammar_dir" "$output_so"
+    "{{project_root}}/scripts/build_grammar.py" "$grammar_dir" "$output_so"
     end_ms=$(python -c 'import time; print(int(time.time() * 1000))')
     build_time_ms=$((end_ms - start_ms))
 
