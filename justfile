@@ -53,14 +53,15 @@ rebuild GRAMMAR:
     just build "{{GRAMMAR}}"
 
 parse GRAMMAR SOURCE: init
-    grammar_so="{{project_root}}/build/{{GRAMMAR}}.so"
+    #!/usr/bin/env bash
+    grammar_so="{{project_root}}/build/{{GRAMMAR}}/{{GRAMMAR}}.so"
 
     just check-file "$grammar_so" "Error: built grammar not found: $grammar_so. Run 'just build {{GRAMMAR}}' first"
     just check-file "{{SOURCE}}" "Error: source file not found: {{SOURCE}}"
 
     parse_result=$(mktemp)
     start_ms=$(python -c 'import time; print(int(time.time() * 1000))')
-    tree-sitter parse --json --scope "source.{{GRAMMAR}}" "{{SOURCE}}" > "$parse_result"
+    tree-sitter parse "{{SOURCE}}" --language "$grammar_so" --json > "$parse_result"
     end_ms=$(python -c 'import time; print(int(time.time() * 1000))')
     parse_time_ms=$((end_ms - start_ms))
 
@@ -70,8 +71,19 @@ parse GRAMMAR SOURCE: init
         --parse-result "$parse_result" \
         --parse-time "$parse_time_ms" >> "{{project_root}}/logs/parses.jsonl"
 
-    cat "$parse_result"
+    cat "$parse_result" | jq '.'
+    echo ""
+    echo "Parse logged to parses.jsonl"
     rm -f "$parse_result"
+
+test-grammar GRAMMAR:
+    #!/usr/bin/env bash
+    corpus_dir="{{project_root}}/grammars/{{GRAMMAR}}/test/corpus"
+    just check-dir "$corpus_dir" "Error: No corpus tests found for {{GRAMMAR}}"
+    tree-sitter test --cwd "{{project_root}}/grammars/{{GRAMMAR}}"
+
+test GRAMMAR: build GRAMMAR
+    just parse "{{GRAMMAR}}" "{{project_root}}/tests/fixtures/sample_{{GRAMMAR}}.txt"
 
 clean:
     find "{{project_root}}/build" -type f -name '*.so' -delete
