@@ -7,11 +7,11 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-BUILD_SCRIPT = PROJECT_ROOT / "scripts" / "build_grammar.sh"
+BUILD_SCRIPT = PROJECT_ROOT / "scripts" / "build_grammar.py"
 
 
 def require_toolchain() -> None:
-    missing = [tool for tool in ("tree-sitter", "gcc", "bash") if shutil.which(tool) is None]
+    missing = [tool for tool in ("tree-sitter", "gcc", "uv") if shutil.which(tool) is None]
     if missing:
         pytest.skip(f"Required tool(s) unavailable in PATH: {', '.join(missing)}")
 
@@ -66,7 +66,7 @@ class TestBuildScript:
         output_so = tmp_path / "minimal.so"
 
         result = subprocess.run(
-            ["bash", str(BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
+            [str(BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -82,7 +82,7 @@ class TestBuildScript:
         output_so = tmp_path / "scanner_test.so"
 
         result = subprocess.run(
-            ["bash", str(BUILD_SCRIPT), str(scanner_grammar), str(output_so)],
+            [str(BUILD_SCRIPT), str(scanner_grammar), str(output_so)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -101,7 +101,7 @@ class TestBuildScript:
         output_so = tmp_path / "missing_parser.so"
 
         result = subprocess.run(
-            ["bash", str(BUILD_SCRIPT), str(grammar_dir), str(output_so)],
+            [str(BUILD_SCRIPT), str(grammar_dir), str(output_so)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -116,7 +116,7 @@ class TestBuildScript:
         output_so = tmp_path / "nested" / "out" / "minimal.so"
 
         result = subprocess.run(
-            ["bash", str(BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
+            [str(BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -128,7 +128,7 @@ class TestBuildScript:
     def test_usage_error_when_args_missing(self) -> None:
         """Script exits non-zero with usage info when args are missing."""
         result = subprocess.run(
-            ["bash", str(BUILD_SCRIPT)],
+            [str(BUILD_SCRIPT)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
