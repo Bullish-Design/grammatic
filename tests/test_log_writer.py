@@ -47,6 +47,79 @@ class TestLogWriter:
         assert log_entry["compiler"] == "gcc"
         assert log_entry["tree_sitter_version"] == "0.21.0"
 
+
+    def test_build_log_generation_with_cpp_scanner(self, tmp_path: Path) -> None:
+        grammar_dir = ROOT / "grammars" / "test" / "src"
+        grammar_dir.mkdir(parents=True, exist_ok=True)
+        scanner_cc = grammar_dir / "scanner.cc"
+        scanner_cc.write_text("// scanner")
+
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "build",
+                    "--grammar",
+                    "test",
+                    "--commit",
+                    "abc123",
+                    "--repo-url",
+                    "https://example.com/test",
+                    "--so-path",
+                    str(tmp_path / "build" / "test.so"),
+                    "--build-time",
+                    "1234",
+                    "--tree-sitter-version",
+                    "0.21.0",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=ROOT,
+            )
+
+            log_entry = json.loads(result.stdout)
+            assert log_entry["compiler"] == "g++"
+        finally:
+            scanner_cc.unlink(missing_ok=True)
+
+    def test_build_log_generation_with_c_scanner(self, tmp_path: Path) -> None:
+        grammar_dir = ROOT / "grammars" / "test" / "src"
+        grammar_dir.mkdir(parents=True, exist_ok=True)
+        scanner_c = grammar_dir / "scanner.c"
+        scanner_c.write_text("/* scanner */")
+
+        try:
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "build",
+                    "--grammar",
+                    "test",
+                    "--commit",
+                    "abc123",
+                    "--repo-url",
+                    "https://example.com/test",
+                    "--so-path",
+                    str(tmp_path / "build" / "test.so"),
+                    "--build-time",
+                    "1234",
+                    "--tree-sitter-version",
+                    "0.21.0",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=ROOT,
+            )
+
+            log_entry = json.loads(result.stdout)
+            assert log_entry["compiler"] == "gcc"
+        finally:
+            scanner_c.unlink(missing_ok=True)
+
     def test_parse_log_generation(self, tmp_path: Path) -> None:
         parse_result = tmp_path / "parse.json"
         parse_result.write_text((ROOT / "tests" / "fixtures" / "sample_parse.json").read_text())
