@@ -20,7 +20,7 @@
   };
 
   env = {
-    GRAMMATIC_ROOT = builtins.toString ./.;
+    GRAMMATIC_ROOT = "./.";
   };
 
   enterShell = ''
