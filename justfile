@@ -17,6 +17,9 @@ add-grammar NAME URL:
     just check-missing "{{project_root}}/grammars/{{NAME}}" "Error: grammars/{{NAME}} already exists"
     git -C "{{project_root}}" submodule add "{{URL}}" "grammars/{{NAME}}"
 
+update-grammars:
+    git -C "{{project_root}}" submodule update --remote --merge
+
 generate GRAMMAR:
     just check-dir "{{project_root}}/grammars/{{GRAMMAR}}" "Error: grammar directory not found: grammars/{{GRAMMAR}}"
     tree-sitter generate --cwd "{{project_root}}/grammars/{{GRAMMAR}}"
@@ -45,6 +48,10 @@ build GRAMMAR: init
         --build-time "$build_time_ms" \
         --tree-sitter-version "$tree_sitter_version" >> "{{project_root}}/logs/builds.jsonl"
 
+rebuild GRAMMAR:
+    just generate "{{GRAMMAR}}"
+    just build "{{GRAMMAR}}"
+
 parse GRAMMAR SOURCE: init
     grammar_so="{{project_root}}/build/{{GRAMMAR}}.so"
 
@@ -65,3 +72,9 @@ parse GRAMMAR SOURCE: init
 
     cat "$parse_result"
     rm -f "$parse_result"
+
+clean:
+    find "{{project_root}}/build" -type f -name '*.so' -delete
+
+clean-all: clean
+    find "{{project_root}}/logs" -type f -name '*.jsonl' -delete
