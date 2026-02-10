@@ -50,11 +50,13 @@ def lookup_grammar_version(grammar: str, builds_log_path: Path = Path("logs/buil
     return "unknown"
 
 
-def detect_compiler(grammar: str, so_path: Path) -> str:
+def detect_compiler(grammar: str) -> str:
     """Detect compiler based on scanner file presence in grammar source."""
-    grammar_dir = so_path.parent.parent / "grammars" / grammar
+    grammar_dir = Path("grammars") / grammar
     if (grammar_dir / "src" / "scanner.cc").exists():
         return "g++"
+    if (grammar_dir / "src" / "scanner.c").exists():
+        return "gcc"
     return "gcc"
 
 
@@ -69,7 +71,7 @@ def log_build(args: argparse.Namespace) -> None:
         so_path=so_path,
         build_success=True,
         build_time_ms=args.build_time,
-        compiler=detect_compiler(args.grammar, so_path),
+        compiler=detect_compiler(args.grammar),
         tree_sitter_version=args.tree_sitter_version,
     )
     print(entry.model_dump_json())
