@@ -21,7 +21,7 @@ generate GRAMMAR:
 build GRAMMAR: init
     #!/usr/bin/env bash
     grammar_dir="{{project_root}}/grammars/{{GRAMMAR}}"
-    output_so="{{project_root}}/build/{{GRAMMAR}}.so"
+    output_so="{{project_root}}/build/{{GRAMMAR}}/{{GRAMMAR}}.so"
 
     just check-dir "$grammar_dir" "Error: grammar directory not found: $grammar_dir"
 
