@@ -85,7 +85,7 @@ test-grammar GRAMMAR:
     just check-dir "$corpus_dir" "Error: No corpus tests found for {{GRAMMAR}}"
     tree-sitter test --cwd "{{project_root}}/grammars/{{GRAMMAR}}"
 
-test GRAMMAR: build GRAMMAR
+test GRAMMAR: (build GRAMMAR)
     just parse "{{GRAMMAR}}" "{{project_root}}/tests/fixtures/sample_{{GRAMMAR}}.txt"
 
 # Watch grammar for changes and rebuild
