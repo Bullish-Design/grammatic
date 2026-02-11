@@ -110,76 +110,8 @@ new-grammar NAME:
         exit 1
     fi
 
-    mkdir -p "{{project_root}}/grammars/{{NAME}}/src"
-    mkdir -p "{{project_root}}/grammars/{{NAME}}/test/corpus"
+    scripts/new_grammar.sh "{{project_root}}" "{{NAME}}"
 
-    cat > "{{project_root}}/grammars/{{NAME}}/grammar.js" << 'EOG'
-module.exports = grammar({
-  name: '{{NAME}}',
-
-  rules: {
-    source_file: $ => repeat($._line),
-
-    _line: $ => choice(
-      $.entry,
-      $.comment
-    ),
-
-    entry: $ => /[^\n]+/,
-
-    comment: $ => seq('#', /[^\n]*/)
-  }
-});
-EOG
-
-    cat > "{{project_root}}/grammars/{{NAME}}/test/corpus/basic.txt" << 'EOC'
-==================
-Basic entry
-==================
-
-sample line
-
----
-
-(source_file
-  (entry))
-
-==================
-Comment
-==================
-
-# this is a comment
-
----
-
-(source_file
-  (comment))
-EOC
-
-    cat > "{{project_root}}/grammars/{{NAME}}/README.md" << 'EOR'
-# {{NAME}} Grammar
-
-Tree-sitter grammar for {{NAME}}.
-
-## Development
-
-```bash
-# Generate parser
-just generate {{NAME}}
-
-# Build shared library
-just build {{NAME}}
-
-# Run corpus tests
-just test-grammar {{NAME}}
-
-# Watch for changes
-just watch {{NAME}}
-```
-EOR
-
-    echo "Created grammar template: grammars/{{NAME}}"
-    echo "Next: cd grammars/{{NAME}} && tree-sitter generate"
 
 # List all available grammars
 list-grammars:
