@@ -77,6 +77,21 @@ devenv shell
 
 The canonical runtime is Python 3.13 + `uv`, with `just`, `tree-sitter`, compilers, and `jq` available.
 
+
+## Pytest Troubleshooting
+
+If pytest reports environment/setup errors rather than assertion failures, check tool availability first:
+
+```bash
+just --version
+tree-sitter --version
+pytest -rs
+```
+
+Many integration-style tests are intentionally skipped when `just` or `tree-sitter` is missing, and this can mask repository-layout issues until runtime.
+
+The `grammatic.workspace` Pydantic models can be used in scripts to validate repository and grammar paths early, so failures become actionable before shell commands run.
+
 ## Additional Documentation
 
 - [CONCEPT.md](./CONCEPT.md) — distilled project concept and scope
