@@ -53,8 +53,8 @@ class TestLogWriter:
         assert log_entry["commit"] == "abc123"
         assert log_entry["repo_url"] == "https://example.com/test"
         assert log_entry["so_path"] == str((ROOT / "build" / "test.so").resolve())
-        assert log_entry["build_success"] is True
-        assert log_entry["build_time_ms"] == 1234
+        assert log_entry["status"] == "success"
+        assert log_entry["duration_ms"] == 1234
         assert log_entry["compiler"] == "gcc"
         assert log_entry["tree_sitter_version"] == "0.21.0"
 
@@ -166,7 +166,7 @@ class TestLogWriter:
         assert log_entry["source_file"] == str((ROOT / "tests" / "fixtures" / "sample.py").resolve())
         assert log_entry["node_count"] == 3
         assert log_entry["has_errors"] is False
-        assert log_entry["parse_time_ms"] == 12
+        assert log_entry["duration_ms"] == 12
         assert log_entry["root_node_type"] == "source_file"
 
     def test_error_node_detection(self, tmp_path: Path) -> None:

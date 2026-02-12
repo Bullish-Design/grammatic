@@ -140,7 +140,11 @@ class TestParse:
         assert result.returncode == 1
         assert "source file not found" in result.stderr
         assert "Parse logged" not in result.stdout
-        assert not (minimal_grammar_built / "logs" / "parses.jsonl").exists()
+        log_path = minimal_grammar_built / "logs" / "parses.jsonl"
+        assert log_path.exists()
+        entry = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
+        assert entry["status"] == "failure"
+        assert entry["error_code"] == "VALIDATIONERROR"
 
     def test_parse_detects_errors_field(self, minimal_grammar_built: Path) -> None:
         test_file = minimal_grammar_built / "test.txt"

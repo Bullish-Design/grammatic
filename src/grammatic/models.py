@@ -247,8 +247,13 @@ class BuildLogEntry(BaseModel):
     commit: str = Field(description="Grammar commit hash used for this build.")
     repo_url: str = Field(description="Grammar git remote URL used for this build.")
     so_path: Path = Field(description="Filesystem path to the compiled shared library output.")
-    build_success: bool = Field(description="Whether the build command completed successfully.")
-    build_time_ms: int = Field(ge=0, description="Build duration in milliseconds.")
+    status: Literal["success", "failure"] = Field(
+        description="Normalized workflow status for build events."
+    )
+    duration_ms: int = Field(ge=0, description="Build duration in milliseconds.")
+    error_code: str | None = Field(default=None, description="Optional stable machine-readable error code.")
+    stderr_excerpt: str | None = Field(default=None, description="Optional stderr excerpt for failed runs.")
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
     compiler: Literal["gcc", "g++"] = Field(
         description="Compiler selected for the build based on scanner source type."
     )
@@ -267,5 +272,11 @@ class ParseLogEntry(BaseModel):
     source_file: Path = Field(description="Filesystem path to the parsed source file.")
     node_count: int = Field(ge=0, description="Total number of nodes in the produced AST.")
     has_errors: bool = Field(description="Whether the parse output contains ERROR nodes.")
-    parse_time_ms: int = Field(ge=0, description="Parse duration in milliseconds.")
+    status: Literal["success", "failure"] = Field(
+        description="Normalized workflow status for parse events."
+    )
+    duration_ms: int = Field(ge=0, description="Parse duration in milliseconds.")
+    error_code: str | None = Field(default=None, description="Optional stable machine-readable error code.")
+    stderr_excerpt: str | None = Field(default=None, description="Optional stderr excerpt for failed runs.")
+    diagnostics: list[Diagnostic] = Field(default_factory=list)
     root_node_type: str = Field(description="Type of the parse tree root node.")
