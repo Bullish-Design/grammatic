@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+SPECIAL_GRAMMARS = ['quote"name', 'dollar$name', 'bracket[name]']
 
 
 def require_toolchain() -> None:
@@ -85,6 +86,18 @@ def repo_with_logs(test_repo: Path) -> Path:
                         "timestamp": "2026-01-01T12:30:00",
                     }
                 ),
+                *[
+                    json.dumps(
+                        {
+                            "event_type": "build",
+                            "grammar": grammar,
+                            "build_success": True,
+                            "build_time_ms": 95,
+                            "timestamp": "2026-01-01T12:45:00",
+                        }
+                    )
+                    for grammar in SPECIAL_GRAMMARS
+                ],
             ]
         )
         + "\n",
@@ -125,6 +138,19 @@ def repo_with_logs(test_repo: Path) -> Path:
                         "timestamp": "2026-01-01T14:30:00",
                     }
                 ),
+                *[
+                    json.dumps(
+                        {
+                            "event_type": "parse",
+                            "grammar": grammar,
+                            "grammar_version": "xyz000",
+                            "has_errors": False,
+                            "parse_time_ms": 8,
+                            "timestamp": "2026-01-01T15:00:00",
+                        }
+                    )
+                    for grammar in SPECIAL_GRAMMARS
+                ],
             ]
         )
         + "\n",
@@ -160,8 +186,8 @@ class TestLogQueries:
         assert all('"grammar":"test"' in line for line in lines)
 
 
-    def test_query_builds_for_grammar_with_special_chars(self, repo_with_logs: Path) -> None:
-        grammar = 'odd"name$[]'
+    @pytest.mark.parametrize("grammar", ['odd"name$[]', *SPECIAL_GRAMMARS])
+    def test_query_builds_for_grammar_with_special_chars(self, repo_with_logs: Path, grammar: str) -> None:
         result = subprocess.run(
             ["just", "query-builds-for", grammar],
             capture_output=True,
@@ -175,8 +201,8 @@ class TestLogQueries:
         entry = json.loads(lines[0])
         assert entry["grammar"] == grammar
 
-    def test_query_parses_for_grammar_with_special_chars(self, repo_with_logs: Path) -> None:
-        grammar = 'odd"name$[]'
+    @pytest.mark.parametrize("grammar", ['odd"name$[]', *SPECIAL_GRAMMARS])
+    def test_query_parses_for_grammar_with_special_chars(self, repo_with_logs: Path, grammar: str) -> None:
         result = subprocess.run(
             ["just", "query-parses-for", grammar],
             capture_output=True,
@@ -190,8 +216,8 @@ class TestLogQueries:
         entry = json.loads(lines[0])
         assert entry["grammar"] == grammar
 
-    def test_build_success_rate_with_special_chars(self, repo_with_logs: Path) -> None:
-        grammar = 'odd"name$[]'
+    @pytest.mark.parametrize("grammar", ['odd"name$[]', *SPECIAL_GRAMMARS])
+    def test_build_success_rate_with_special_chars(self, repo_with_logs: Path, grammar: str) -> None:
         result = subprocess.run(
             ["just", "build-success-rate", grammar],
             capture_output=True,

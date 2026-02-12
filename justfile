@@ -211,8 +211,9 @@ query-builds N="10":
 
 query-builds-for GRAMMAR:
     #!/usr/bin/env bash
+    grammar={{ quote(GRAMMAR) }}
     if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
-        jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl"
+        jq --arg grammar "$grammar" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl"
     fi
 
 query-parses N="10":
@@ -229,18 +230,20 @@ query-failures:
 
 query-parses-for GRAMMAR:
     #!/usr/bin/env bash
+    grammar={{ quote(GRAMMAR) }}
     if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl"
+        jq --arg grammar "$grammar" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl"
     fi
 
 build-success-rate GRAMMAR:
     #!/usr/bin/env bash
+    grammar={{ quote(GRAMMAR) }}
     if [ ! -f "{{project_root}}/logs/builds.jsonl" ]; then
         echo '[]'
         exit 0
     fi
-    jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl" \
-        | jq -s "group_by(.build_success) | map({success: .[0].build_success, count: length})"
+    jq --arg grammar "$grammar" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl" \
+        | jq -s 'group_by(.build_success) | map({success: .[0].build_success, count: length})'
 
 avg-parse-time GRAMMAR:
     #!/usr/bin/env bash
