@@ -25,7 +25,7 @@ update-grammars:
 
 generate GRAMMAR:
     just check-dir "{{project_root}}/grammars/{{GRAMMAR}}" "Error: grammar directory not found: grammars/{{GRAMMAR}}"
-    tree-sitter generate "{{project_root}}/grammars/{{GRAMMAR}}/grammar.js" --output "{{project_root}}/build/{{GRAMMAR}}"
+    cd "{{project_root}}/grammars/{{GRAMMAR}}" && tree-sitter generate
 
 build GRAMMAR: init
     #!/usr/bin/env bash
@@ -156,7 +156,7 @@ list-grammars:
 
     for dir in "${dirs[@]}"; do
         grammar=$(basename "$dir")
-        if [ -f "{{project_root}}/build/$grammar/$grammar.so" ] || [ -f "{{project_root}}/build/$grammar.so" ]; then
+        if [ -f "{{project_root}}/build/$grammar/$grammar.so" ]; then
             echo "  ✓ $grammar (built)"
         else
             echo "  ✗ $grammar (not built)"
@@ -188,8 +188,6 @@ info GRAMMAR:
 
     if [ -f "{{project_root}}/build/{{GRAMMAR}}/{{GRAMMAR}}.so" ]; then
         echo "Built: ✓ (build/{{GRAMMAR}}/{{GRAMMAR}}.so)"
-    elif [ -f "{{project_root}}/build/{{GRAMMAR}}.so" ]; then
-        echo "Built: ✓ (build/{{GRAMMAR}}.so)"
     else
         echo "Built: ✗"
     fi
