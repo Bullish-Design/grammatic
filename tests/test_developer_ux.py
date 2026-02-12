@@ -39,6 +39,7 @@ def test_repo(tmp_path: Path) -> Path:
     shutil.copy(PROJECT_ROOT / "scripts" / "log_writer.py", repo / "scripts" / "log_writer.py")
     shutil.copy(PROJECT_ROOT / "scripts" / "query_logs.py", repo / "scripts" / "query_logs.py")
     shutil.copy(PROJECT_ROOT / "scripts" / "grammar_doctor.py", repo / "scripts" / "grammar_doctor.py")
+    shutil.copy(PROJECT_ROOT / "scripts" / "new_grammar.sh", repo / "scripts" / "new_grammar.sh")
     shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.just", repo / "scripts" / "just" / "path_checks.just")
     shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.py", repo / "scripts" / "just" / "path_checks.py")
     shutil.copy(PROJECT_ROOT / "src" / "grammatic" / "models.py", repo / "src" / "grammatic" / "models.py")
@@ -59,9 +60,22 @@ class TestNewGrammar:
             cwd=test_repo,
         )
 
-        assert (test_repo / "grammars" / "mytest" / "grammar.js").exists()
+        grammar_js = test_repo / "grammars" / "mytest" / "grammar.js"
+        readme = test_repo / "grammars" / "mytest" / "README.md"
+
+        assert grammar_js.exists()
         assert (test_repo / "grammars" / "mytest" / "test" / "corpus" / "basic.txt").exists()
-        assert (test_repo / "grammars" / "mytest" / "README.md").exists()
+        assert readme.exists()
+
+        grammar_js_content = grammar_js.read_text(encoding="utf-8")
+        readme_content = readme.read_text(encoding="utf-8")
+
+        assert "__GRAMMAR_NAME__" not in grammar_js_content
+        assert "name: 'mytest'" in grammar_js_content
+
+        assert "__GRAMMAR_NAME__" not in readme_content
+        assert "# mytest Grammar" in readme_content
+        assert "just build mytest" in readme_content
 
     def test_prevents_duplicate_grammar(self, test_repo: Path) -> None:
         subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
