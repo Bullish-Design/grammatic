@@ -38,6 +38,7 @@ def setup_minimal_grammar(repo: Path) -> Path:
     """Set up a minimal test grammar."""
     grammar_dir = repo / "grammars" / "minimal"
     grammar_dir.mkdir(parents=True)
+    (grammar_dir / "src").mkdir()
 
     fixture = PROJECT_ROOT / "tests" / "fixtures" / "minimal_grammar" / "grammar.js"
     shutil.copy(fixture, grammar_dir / "grammar.js")
