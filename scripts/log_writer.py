@@ -36,28 +36,37 @@ def has_errors(node: dict[str, Any]) -> bool:
     return any(has_errors(child) for child in node.get("children", []))
 
 
-def lookup_grammar_version(grammar: str, builds_log_path: Path = Path("logs/builds.jsonl")) -> str:
+def lookup_grammar_version(grammar: str, builds_log_path: Path) -> str:
     """Find most recent commit for a grammar from builds JSONL logs."""
     if not builds_log_path.exists():
         return "unknown"
 
+    latest_commit = "unknown"
+
     try:
-        lines = builds_log_path.read_text().splitlines()
-        for line in reversed(lines):
-            if not line.strip():
-                continue
-            entry = json.loads(line)
-            if entry.get("grammar") == grammar:
-                return str(entry.get("commit", "unknown"))
-    except Exception as exc:  # pragma: no cover - warning path only
+        with builds_log_path.open(encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                entry = json.loads(line)
+                if entry.get("grammar") == grammar:
+                    latest_commit = str(entry.get("commit", "unknown"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:  # pragma: no cover - warning path only
         print(f"Warning: Could not lookup grammar version: {exc}", file=sys.stderr)
+        return "unknown"
 
-    return "unknown"
+    return latest_commit
 
 
-def detect_compiler(grammar: str) -> str:
+def detect_compiler(grammar: str, project_root: Path) -> str:
     """Detect compiler based on scanner file presence in grammar source."""
-    grammar_dir = Path("grammars") / grammar
+    grammar_dir = (project_root / "grammars" / grammar).resolve()
+    if not grammar_dir.exists():
+        raise FileNotFoundError(
+            f"Grammar directory not found for '{grammar}': {grammar_dir}. "
+            "Pass --project-root to set the repository root."
+        )
+
     if (grammar_dir / "src" / "scanner.cc").exists():
         return "g++"
     if (grammar_dir / "src" / "scanner.c").exists():
@@ -65,9 +74,26 @@ def detect_compiler(grammar: str) -> str:
     return "gcc"
 
 
+def resolve_project_root(project_root_arg: str | None) -> Path:
+    """Resolve project root from CLI arg or current working directory."""
+    project_root = Path(project_root_arg).resolve() if project_root_arg else Path.cwd().resolve()
+    if not project_root.exists() or not project_root.is_dir():
+        raise FileNotFoundError(f"Project root directory does not exist: {project_root}")
+    return project_root
+
+
+def resolve_from_project_root(path_arg: str, project_root: Path) -> Path:
+    """Resolve a possibly-relative path from project root."""
+    path = Path(path_arg)
+    if not path.is_absolute():
+        path = project_root / path
+    return path.resolve()
+
+
 def log_build(args: argparse.Namespace) -> None:
     """Write build event JSON to stdout."""
-    so_path = Path(args.so_path)
+    project_root = resolve_project_root(args.project_root)
+    so_path = resolve_from_project_root(args.so_path, project_root)
     entry = BuildLogEntry(
         timestamp=datetime.now(),
         grammar=args.grammar,
@@ -76,7 +102,7 @@ def log_build(args: argparse.Namespace) -> None:
         so_path=so_path,
         build_success=True,
         build_time_ms=args.build_time,
-        compiler=detect_compiler(args.grammar),
+        compiler=detect_compiler(args.grammar, project_root),
         tree_sitter_version=args.tree_sitter_version,
     )
     print(entry.model_dump_json())
@@ -102,8 +128,8 @@ def log_parse(args: argparse.Namespace) -> None:
     entry = ParseLogEntry(
         timestamp=datetime.now(),
         grammar=args.grammar,
-        grammar_version=lookup_grammar_version(args.grammar),
-        source_file=Path(args.source),
+        grammar_version=lookup_grammar_version(args.grammar, builds_log_path),
+        source_file=resolve_from_project_root(args.source, project_root),
         node_count=count_nodes(root),
         has_errors=has_errors(root),
         parse_time_ms=args.parse_time,
@@ -114,6 +140,8 @@ def log_parse(args: argparse.Namespace) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Log grammar build/parse events as JSONL")
+    parser.add_argument("--project-root", help="Project root used to resolve relative paths")
+    parser.add_argument("--builds-log", help="Path to builds JSONL (relative paths resolved from project root)")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     build_parser = subparsers.add_parser("build", help="Log build event")
@@ -132,10 +160,13 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    if args.command == "build":
-        log_build(args)
-    else:
-        log_parse(args)
+    try:
+        if args.command == "build":
+            log_build(args)
+        else:
+            log_parse(args)
+    except FileNotFoundError as exc:
+        parser.error(str(exc))
 
 
 if __name__ == "__main__":
