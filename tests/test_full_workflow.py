@@ -126,3 +126,21 @@ def test_complete_workflow(test_repo: Path) -> None:
     with (test_repo / "logs" / "parses.jsonl").open(encoding="utf-8") as handle:
         parse_entry = json.loads(handle.read().splitlines()[-1])
         assert parse_entry["grammar"] == "demo"
+
+
+def test_generate_writes_parser_to_grammar_src_before_build(test_repo: Path) -> None:
+    subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
+    subprocess.run(
+        ["just", "--justfile", str(test_repo / "justfile"), "new-grammar", "demo"],
+        check=True,
+        capture_output=True,
+        cwd=test_repo.parent,
+    )
+
+    parser_c = test_repo / "grammars" / "demo" / "src" / "parser.c"
+    assert not parser_c.exists()
+
+    subprocess.run(["just", "generate", "demo"], check=True, capture_output=True, cwd=test_repo)
+
+    assert parser_c.exists()
+    assert not (test_repo / "build" / "demo" / "parser.c").exists()
