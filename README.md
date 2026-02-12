@@ -1,6 +1,6 @@
 # Grammatic
 
-Grammatic is a devenv-managed toolkit for building and validating tree-sitter grammars with `just` recipes and JSONL event logs. It focuses on reproducible grammar workflows, shell-first automation, and append-only provenance for build and parse runs.
+Grammatic is a devenv-managed toolkit for building and validating tree-sitter grammars with `just` recipes that wrap tree-sitter cli functionality. It focuses on reproducible grammar workflows, shell-first automation, and append-only provenance for build and parse runs.
 
 ## Quick Start
 
@@ -20,14 +20,13 @@ just parse python tests/fixtures/example.py
 
 ## Python Version Policy
 
-- Supported project range: **Python 3.12 to 3.13** (`>=3.12,<3.14`).
 - Canonical development runtime: **Python 3.13 via `devenv shell`**.
 
 ### `uv run` vs `devenv shell`
 
-- Use `uv run <command>` for Python-only tasks (for example, running scripts or tests) once your environment is bootstrapped.
-- Use `devenv shell` when you need the full toolchain (`tree-sitter`, compilers, `jq`, `just`) or when setting up a fresh machine/session, since it provides the pinned system dependencies and canonical Python runtime.
+- Assume all work is being done inside the `devenv shell` with the full toolchain (`tree-sitter`, compilers, `jq`, `just`, `uv`) available, since devenv provides the pinned system dependencies and canonical Python runtime.
+- Ensure all `just` scripts are written for this scenario, and are always run from the repo root
 
 ## Build Implementation
 
-Grammatic uses a single canonical build entrypoint: `scripts/build_grammar.py`. The `scripts/build_grammar.sh` file is only a thin compatibility wrapper that delegates to the Python script.
+Grammatic uses a single canonical build entrypoint: `scripts/build_grammar.py`. 
