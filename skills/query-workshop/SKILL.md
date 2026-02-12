@@ -9,100 +9,65 @@ Use this skill when the task is to add, update, validate, or review tree-sitter 
 
 ## Intent
 
-Optimize for high-signal query behavior that improves grammar usability (highlighting, locals, injections, tags) while preserving the core grammar workshop loop.
+Optimize for high-signal query behavior that improves grammar usability while preserving the grammar workshop loop.
 
 Primary outcomes:
-- query files are clear and maintainable
-- captures align with real syntax nodes from the target grammar
-- query behavior is validated against representative fixtures
-- changes are easy to iterate with existing Grammatic commands and tools
+- captures align with real syntax nodes
+- query behavior is verified on representative fixtures
+- diagnostics clearly explain failures and next actions
+- logging captures both successful runs and failure telemetry
 
-## Scope + Relationship to Grammar Workflow
+## Preferred Command Flow
 
-The grammar workshop loop remains primary. Query work should be anchored to the grammar-name flow:
+Run grammar workflows through Python entrypoints first; `just` remains an optional convenience wrapper.
 
-1. Ensure grammar compiles and tests cleanly (`just generate`, `just build`, `just test-grammar`, `just doctor`)
-2. Implement or modify query files
-3. Validate queries on realistic source fixtures
-4. Iterate on captures/patterns until behavior is stable
+For grammar `<grammar>`:
+1. `python -m grammatic.workflows.generate <grammar>` (or `just generate <grammar>`)
+2. `python -m grammatic.workflows.build <grammar>` (or `just build <grammar>`)
+3. `python -m grammatic.workflows.test_grammar <grammar>` (or `just test-grammar <grammar>`)
+4. `python -m grammatic.workflows.doctor <grammar>` (or `just doctor <grammar>`)
+5. Apply/update query files and validate with `tree-sitter query`
+6. Optional focused parse check: `python -m grammatic.workflows.parse <grammar> <source>`
 
-Use `grammar-workshop` skill for parser/corpus changes; use this skill for `.scm` semantics.
+Always keep grammar-name-first UX; avoid raw path-centric command interfaces.
 
-## Canonical Query File Locations
+## Typed Contracts + Structured Diagnostics
 
-Within `grammars/<grammar>/`, prefer tree-sitter conventions:
+- Workflow inputs/outputs should use typed models (Pydantic) for reproducible automation.
+- Doctor diagnostics should be structured (check id/status/severity/message/remediation).
+- Query validation output should map failures to concrete patterns/captures when possible.
 
-- `queries/highlights.scm`
-- `queries/injections.scm`
-- `queries/locals.scm`
-- `queries/tags.scm`
+Keep diagnostics concise and directly useful for iteration on grammar + tests.
 
-If a grammar already uses an alternate layout, preserve local conventions unless explicitly migrating.
+## Preflight Validation + Actionable Errors
+
+Before query evaluation, validate:
+- grammar exists at `grammars/<grammar>/`
+- query files exist in expected locations (for example `queries/highlights.scm`)
+- grammar build artifacts/tooling prerequisites are available
+
+Failures should state what is missing, why it matters, and the next command to recover.
+
+## Logging + Failure Telemetry
+
+Record structured workshop events for query operations and prerequisite grammar workflow steps:
+- include operation type, grammar name, timestamps, and outcome
+- explicitly log failures with stage/check and error details
+- keep append-only JSONL provenance so failed attempts are preserved for debugging
 
 ## Query Authoring Guidelines
 
-1. Work from concrete node names
-   - Inspect `grammar.js` and corpus expectations first
-   - Match actual node/type names exactly
+- Start from concrete node names from grammar + corpus outputs.
+- Prefer specific patterns before broad alternations.
+- Use stable, intention-revealing capture names.
+- Avoid wildcard-heavy patterns that hide regressions.
+- Re-run grammar tests/doctor after meaningful query changes.
 
-2. Keep patterns specific before generalizing
-   - Start with narrow patterns that are easy to verify
-   - Add alternations/abstractions only when repeated structure is proven
+## Concise Iteration Example
 
-3. Prefer readable captures
-   - Use capture names with clear intent (`@function`, `@type`, `@variable`, etc.)
-   - Group related patterns and add short comments for non-obvious logic
+1. Add a narrow `highlights.scm` pattern for a new declaration form.
+2. Run `tree-sitter query` on a fixture that includes that declaration.
+3. If captures are wrong, adjust pattern fields (not broad wildcards).
+4. Re-run `...test_grammar` and `...doctor` to confirm no regressions.
 
-4. Avoid fragile overmatching
-   - Use field constraints and structural context when possible
-   - Be careful with wildcard-heavy patterns that may degrade precision
-
-5. Keep compatibility in mind
-   - Use capture names expected by downstream tooling for the query type
-   - Do not rename commonly consumed captures without documenting impact
-
-## Evaluation Workflow
-
-For the target grammar `<grammar>`:
-
-1. Validate grammar baseline
-   - `just generate <grammar>`
-   - `just build <grammar>`
-   - `just test-grammar <grammar>`
-   - `just doctor <grammar>`
-
-2. Run focused parse checks on sample inputs
-   - `just parse <grammar> <source>`
-   - choose sources that exercise newly targeted constructs
-
-3. Evaluate query behavior with tree-sitter query tooling
-   - run `tree-sitter query` against the grammar's `.scm` files and source fixtures
-   - compare capture output against expected semantic intent
-
-4. Iterate and re-check
-   - adjust patterns/captures
-   - re-run query checks and grammar tests
-
-## Repository-Specific Practices
-
-- Keep orchestration thin: rely on `just` + `tree-sitter` instead of custom frameworks
-- Prefer grammar-name-first workflow when invoking project commands
-- Keep changes local to a grammar unless intentionally introducing shared conventions
-- If query edits depend on grammar node changes, update corpus tests first-class
-
-## Review Checklist (for PRs and agent handoff)
-
-- Grammar builds and corpus tests still pass
-- Query files are placed in expected grammar paths
-- Added/changed captures are justified by real syntax examples
-- No obvious broad pattern that captures unrelated constructs
-- Complex patterns include brief comments
-- Any intentionally breaking capture-name changes are documented
-
-## Common Pitfalls
-
-- Using node names not emitted by the current parser
-- Relying on anonymous tokens where named nodes are available
-- Adding broad fallback patterns too early
-- Editing query captures without validating against representative fixtures
-- Mixing grammar refactors and query refactors in one large, unreviewable change
+Focus on faster grammar/query iteration and clearer test-quality outcomes.
