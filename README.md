@@ -176,5 +176,6 @@ The `grammatic.workspace` Pydantic models can be used in scripts to validate rep
 
 - [CONCEPT.md](./CONCEPT.md) — distilled project concept and scope
 - [AGENTS.md](./AGENTS.md) — agent operating guidance
+- [docs/migration/python-orchestration.md](./docs/migration/python-orchestration.md) — migration guide for moving recipe orchestration from `just` into Python modules
 - [skills/grammar-workshop/SKILL.md](./skills/grammar-workshop/SKILL.md) — reusable agent workflow skill
 - [skills/query-workshop/SKILL.md](./skills/query-workshop/SKILL.md) — reusable workflow for tree-sitter query (`.scm`) authoring and evaluation
