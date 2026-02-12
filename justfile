@@ -38,6 +38,10 @@ rebuild GRAMMAR:
 parse GRAMMAR SOURCE: init
     PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" parse "{{GRAMMAR}}" "{{SOURCE}}"
 
+
+preflight-import:
+    python -m pytest -q tests/test_imports.py
+
 test-grammar GRAMMAR: (build GRAMMAR)
     PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" test-grammar "{{GRAMMAR}}"
 
