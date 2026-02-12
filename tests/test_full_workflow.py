@@ -40,6 +40,7 @@ def test_repo(tmp_path: Path) -> Path:
     shutil.copy(PROJECT_ROOT / "scripts" / "log_writer.py", repo / "scripts" / "log_writer.py")
     shutil.copy(PROJECT_ROOT / "scripts" / "query_logs.py", repo / "scripts" / "query_logs.py")
     shutil.copy(PROJECT_ROOT / "scripts" / "grammar_doctor.py", repo / "scripts" / "grammar_doctor.py")
+    shutil.copy(PROJECT_ROOT / "scripts" / "new_grammar.sh", repo / "scripts" / "new_grammar.sh")
     shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.just", repo / "scripts" / "just" / "path_checks.just")
     shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.py", repo / "scripts" / "just" / "path_checks.py")
     shutil.copy(PROJECT_ROOT / "src" / "grammatic" / "models.py", repo / "src" / "grammatic" / "models.py")
@@ -50,7 +51,12 @@ def test_repo(tmp_path: Path) -> Path:
 
 def test_complete_workflow(test_repo: Path) -> None:
     subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
-    subprocess.run(["just", "new-grammar", "demo"], check=True, capture_output=True, cwd=test_repo)
+    subprocess.run(
+        ["just", "--justfile", str(test_repo / "justfile"), "new-grammar", "demo"],
+        check=True,
+        capture_output=True,
+        cwd=test_repo.parent,
+    )
     subprocess.run(["just", "generate", "demo"], check=True, capture_output=True, cwd=test_repo)
 
     grammar_dir = test_repo / "grammars" / "demo"
