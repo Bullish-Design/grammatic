@@ -21,12 +21,13 @@ Parsing exists, but is secondary to grammar iteration and test quality.
    - Do not reimplement tree-sitter capabilities in Python
 
 2. **Keep orchestration thin**
-   - `just` targets are the main user/agent interface
-   - Scripts should be small, explicit, and shell-friendly
+   - Python library modules own workflow orchestration and validation
+   - `just` targets remain convenience wrappers that delegate to Python entrypoints
+   - Keep shell scripts and recipes thin, explicit, and shell-friendly
 
 3. **Grammar-name-first UX**
    - Commands should be invoked with grammar names (not raw paths)
-   - Scripts and recipes must resolve paths internally from repo root
+   - Grammar-name-first UX is mandatory; path resolution happens in Python from repo root
 
 4. **Testing is primary**
    - Corpus tests are first-class
@@ -34,7 +35,7 @@ Parsing exists, but is secondary to grammar iteration and test quality.
 
 5. **Structured provenance**
    - Keep append-only JSONL logs for workshop events
-   - Prefer typed log emission via Pydantic models
+   - Pydantic models are required for workflow request/response contracts and event logging
 
 ## Canonical Workflow
 
@@ -43,10 +44,15 @@ Use this loop as the default process:
 1. Add/create grammar (`just add-grammar` or `just new-grammar`)
 2. Edit grammar sources and corpus tests
 3. `just generate <grammar>`
+   - delegates to Python workflow entrypoints for orchestration and validation
 4. `just build <grammar>`
+   - delegates to Python workflow entrypoints for orchestration and validation
 5. `just test-grammar <grammar>`
+   - delegates to Python workflow entrypoints for orchestration and validation
 6. `just doctor <grammar>`
+   - delegates to Python workflow entrypoints for orchestration and validation
 7. Optional: `just parse <grammar> <source>` for spot validation
+   - delegates to Python workflow entrypoints for orchestration and validation
 8. Inspect logs and iterate
 
 ## Path + Artifact Conventions
@@ -69,7 +75,10 @@ Agents should preserve these conventions when making changes.
 - Prioritize reliability and clarity over abstraction
 - Fail loudly with actionable error messages
 - Validate file/dir prerequisites before running tool commands
-- Keep Python focused on validation, path normalization, and structured logging
+- Implement workflow orchestration and validation in Python library modules
+- Use Pydantic models for workflow inputs/outputs and all structured event logs
+- Keep `just` and shell layers as thin wrappers that call Python entrypoints
+- Keep Python responsible for grammar-name to path resolution and normalization
 
 ## Scope for MVP
 
