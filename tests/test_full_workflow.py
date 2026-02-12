@@ -43,8 +43,7 @@ def test_repo(tmp_path: Path) -> Path:
     shutil.copy(PROJECT_ROOT / "scripts" / "new_grammar.sh", repo / "scripts" / "new_grammar.sh")
     shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.just", repo / "scripts" / "just" / "path_checks.just")
     shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.py", repo / "scripts" / "just" / "path_checks.py")
-    shutil.copy(PROJECT_ROOT / "src" / "grammatic" / "models.py", repo / "src" / "grammatic" / "models.py")
-    shutil.copy(PROJECT_ROOT / "src" / "grammatic" / "__init__.py", repo / "src" / "grammatic" / "__init__.py")
+    shutil.copytree(PROJECT_ROOT / "src" / "grammatic", repo / "src" / "grammatic", dirs_exist_ok=True)
 
     return repo
 

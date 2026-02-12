@@ -24,93 +24,20 @@ update-grammars:
     git -C "{{project_root}}" submodule update --remote --merge
 
 generate GRAMMAR:
-    just check-dir "{{project_root}}/grammars/{{GRAMMAR}}" "Error: grammar directory not found: grammars/{{GRAMMAR}}"
-    cd "{{project_root}}/grammars/{{GRAMMAR}}" && tree-sitter generate
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" generate "{{GRAMMAR}}"
 
 build GRAMMAR: init
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    grammar_dir="{{project_root}}/grammars/{{GRAMMAR}}"
-    output_so="{{project_root}}/build/{{GRAMMAR}}/{{GRAMMAR}}.so"
-
-    just check-dir "$grammar_dir" "Error: grammar directory not found: $grammar_dir"
-
-    start_ms=$(python -c 'import time; print(int(time.time() * 1000))')
-    "{{project_root}}/scripts/build_grammar.py" "$grammar_dir" "$output_so"
-    just check-file "$output_so" "Error: build artifact not found after compile: $output_so"
-    end_ms=$(python -c 'import time; print(int(time.time() * 1000))')
-    build_time_ms=$((end_ms - start_ms))
-
-    commit=$(git -C "$grammar_dir" rev-parse HEAD)
-    repo_url=$(git -C "$grammar_dir" config --get remote.origin.url)
-    tree_sitter_version=$(tree-sitter --version | awk '{print $2}')
-
-    "{{project_root}}/scripts/log_writer.py" build \
-        --grammar "{{GRAMMAR}}" \
-        --commit "$commit" \
-        --repo-url "$repo_url" \
-        --so-path "$output_so" \
-        --build-time "$build_time_ms" \
-        --tree-sitter-version "$tree_sitter_version" >> "{{project_root}}/logs/builds.jsonl"
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" build "{{GRAMMAR}}"
 
 rebuild GRAMMAR:
     just generate "{{GRAMMAR}}"
     just build "{{GRAMMAR}}"
 
 parse GRAMMAR SOURCE: init
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    grammar_so="{{project_root}}/build/{{GRAMMAR}}/{{GRAMMAR}}.so"
-
-    just check-file "$grammar_so" "Error: built grammar not found: $grammar_so. Run 'just build {{GRAMMAR}}' first"
-    just check-file "{{SOURCE}}" "Error: source file not found: {{SOURCE}}"
-
-    parse_result=$(mktemp)
-    trap 'rm -f "$parse_result"' EXIT
-
-    start_ms=$(python -c 'import time; print(int(time.time() * 1000))')
-    tree-sitter parse "{{SOURCE}}" --language "$grammar_so" --json > "$parse_result"
-    [ -s "$parse_result" ] || {
-        echo "Error: parse output is empty" >&2
-        exit 1
-    }
-
-    if ! jq -e '.' "$parse_result" > /dev/null; then
-        echo "Error: parse output is not valid JSON" >&2
-        exit 1
-    fi
-
-    end_ms=$(python -c 'import time; print(int(time.time() * 1000))')
-    parse_time_ms=$((end_ms - start_ms))
-
-    "{{project_root}}/scripts/log_writer.py" parse \
-        --grammar "{{GRAMMAR}}" \
-        --source "{{SOURCE}}" \
-        --parse-result "$parse_result" \
-        --parse-time "$parse_time_ms" >> "{{project_root}}/logs/parses.jsonl"
-
-    jq '.' "$parse_result"
-    echo ""
-    echo "Parse logged to parses.jsonl"
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" parse "{{GRAMMAR}}" "{{SOURCE}}"
 
 test-grammar GRAMMAR: (build GRAMMAR)
-    #!/usr/bin/env bash
-    grammar_dir="{{project_root}}/grammars/{{GRAMMAR}}"
-    grammar_so="{{project_root}}/build/{{GRAMMAR}}/{{GRAMMAR}}.so"
-    corpus_dir="{{project_root}}/grammars/{{GRAMMAR}}/test/corpus"
-
-    just check-dir "$grammar_dir" "Error: grammar directory not found: $grammar_dir"
-    just check-dir "$corpus_dir" "Error: No corpus tests found for {{GRAMMAR}}"
-    just check-file "$grammar_so" "Error: built grammar not found: $grammar_so. Run 'just build {{GRAMMAR}}' first"
-
-    if ! tree-sitter test --help | rg -q -- '--language'; then
-        echo "Error: current tree-sitter CLI does not support 'tree-sitter test --language'. Upgrade tree-sitter to run corpus tests against $grammar_so" >&2
-        exit 1
-    fi
-
-    cd "$grammar_dir" && tree-sitter test --language "$grammar_so"
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" test-grammar "{{GRAMMAR}}"
 
 test GRAMMAR:
     just test-grammar "{{GRAMMAR}}"
@@ -214,7 +141,7 @@ info GRAMMAR:
 
 # Check grammar for common issues
 doctor GRAMMAR:
-    python "{{project_root}}/scripts/grammar_doctor.py" "{{GRAMMAR}}"
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" doctor "{{GRAMMAR}}"
 
 query-builds N="10":
     #!/usr/bin/env bash
