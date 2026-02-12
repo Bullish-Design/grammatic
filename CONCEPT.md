@@ -118,15 +118,41 @@ Primary indicator of grammar health: **test results + diagnostics**, not parse d
 
 ---
 
-## Logging and Provenance
+## Provenance Model
 
-JSONL logs capture workshop events for reproducibility:
+Workshop provenance is recorded as **append-only JSONL** events. Every workflow run must append an event for both **success and failure** outcomes to preserve a complete audit trail for grammar iteration.
 
-- Build events (including failures)
-- Parse events (supporting telemetry)
-- Agent metadata where available (session/run context)
+Required event fields:
 
-The logging goal is practical traceability for iteration, not heavyweight observability.
+- `event_type`
+- `timestamp`
+- `grammar`
+- `status`
+- `duration_ms`
+
+Optional diagnostics (recommended on failures, allowed on successes where relevant):
+
+- `error_code`
+- `stderr_excerpt`
+
+Build events and parse telemetry are intentionally distinct:
+
+- **Build events** are first-class provenance records for generate/build/test/doctor outcomes and are the primary iteration history.
+- **Parse telemetry** is supportive diagnostic data for spot validation and should not be treated as the primary quality signal.
+
+Canonical event schema definitions must live in `src/grammatic/models.py` (or a successor contract module that replaces it). Runtime logging code should validate against these Pydantic models before appending to JSONL.
+
+Example successful build event:
+
+```json
+{"event_type":"build","timestamp":"2026-01-15T10:20:30Z","grammar":"python","status":"success","duration_ms":912}
+```
+
+Example failed build event:
+
+```json
+{"event_type":"build","timestamp":"2026-01-15T10:21:02Z","grammar":"python","status":"failure","duration_ms":487,"error_code":"gcc_compile_failed","stderr_excerpt":"cc1plus: fatal error: scanner.cc: No such file or directory"}
+```
 
 ---
 
