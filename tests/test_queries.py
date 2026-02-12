@@ -216,6 +216,22 @@ class TestLogValidation:
 
         assert result.returncode == 0
 
+    def test_validate_invalid_builds_log_fails(self, repo_with_logs: Path) -> None:
+        builds_log = repo_with_logs / "logs" / "builds.jsonl"
+        builds_log.write_text('{"event_type":"build"}\n{invalid-json}\n', encoding="utf-8")
+
+        result = subprocess.run(
+            ["just", "validate-logs"],
+            capture_output=True,
+            text=True,
+            cwd=repo_with_logs,
+        )
+
+        assert result.returncode != 0
+        combined_output = f"{result.stdout}\n{result.stderr}".lower()
+        assert "builds.jsonl has invalid json" in combined_output
+        assert "log validation failed" in combined_output
+
 
 class TestLogExport:
     def test_export_logs(self, repo_with_logs: Path, tmp_path: Path) -> None:

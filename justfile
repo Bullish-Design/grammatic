@@ -273,14 +273,35 @@ export-logs OUTPUT:
 
 validate-logs:
     #!/usr/bin/env bash
+    invalid=0
+
     echo "Validating builds.jsonl..."
     if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
-        jq -e '.' "{{project_root}}/logs/builds.jsonl" > /dev/null || echo "builds.jsonl has invalid JSON"
+        if jq -e '.' "{{project_root}}/logs/builds.jsonl" > /dev/null; then
+            echo "builds.jsonl is valid"
+        else
+            echo "builds.jsonl has invalid JSON" >&2
+            invalid=1
+        fi
+    else
+        echo "builds.jsonl not found, skipping"
     fi
 
     echo "Validating parses.jsonl..."
     if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -e '.' "{{project_root}}/logs/parses.jsonl" > /dev/null || echo "parses.jsonl has invalid JSON"
+        if jq -e '.' "{{project_root}}/logs/parses.jsonl" > /dev/null; then
+            echo "parses.jsonl is valid"
+        else
+            echo "parses.jsonl has invalid JSON" >&2
+            invalid=1
+        fi
+    else
+        echo "parses.jsonl not found, skipping"
+    fi
+
+    if [ "$invalid" -ne 0 ]; then
+        echo "Log validation failed" >&2
+        exit 1
     fi
 
     echo "Log validation complete"
