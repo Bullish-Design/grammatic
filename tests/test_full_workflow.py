@@ -128,6 +128,48 @@ def test_complete_workflow(test_repo: Path) -> None:
         assert parse_entry["grammar"] == "demo"
 
 
+
+
+def test_build_fails_fast_when_generate_preconditions_are_missing(test_repo: Path) -> None:
+    subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
+    subprocess.run(
+        ["just", "--justfile", str(test_repo / "justfile"), "new-grammar", "broken"],
+        check=True,
+        capture_output=True,
+        cwd=test_repo.parent,
+    )
+
+    grammar_dir = test_repo / "grammars" / "broken"
+    subprocess.run(["git", "init"], cwd=grammar_dir, check=True, capture_output=True)
+    subprocess.run(["git", "config", "user.name", "Test"], cwd=grammar_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "test@test.com"],
+        cwd=grammar_dir,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(["git", "add", "."], cwd=grammar_dir, check=True, capture_output=True)
+    subprocess.run(["git", "commit", "-m", "Initial"], cwd=grammar_dir, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "remote", "add", "origin", "https://example.com/broken"],
+        cwd=grammar_dir,
+        check=True,
+        capture_output=True,
+    )
+
+    result = subprocess.run(
+        ["just", "build", "broken"],
+        capture_output=True,
+        text=True,
+        cwd=test_repo,
+    )
+
+    assert result.returncode != 0
+    assert "Run 'tree-sitter generate'" in result.stderr
+    assert not (test_repo / "build" / "broken" / "broken.so").exists()
+    assert not (test_repo / "logs" / "builds.jsonl").exists()
+
+
 def test_generate_writes_parser_to_grammar_src_before_build(test_repo: Path) -> None:
     subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
     subprocess.run(
