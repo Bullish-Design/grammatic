@@ -7,6 +7,9 @@ import subprocess
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from grammatic.errors import ArtifactMissingError, SubprocessExecutionError, ValidationError
+
 
 def print_usage() -> None:
     script_name = Path(sys.argv[0]).name
@@ -18,13 +21,10 @@ def validate_inputs(grammar_dir: Path) -> None:
     parser_c = src_dir / "parser.c"
 
     if not src_dir.is_dir():
-        print(f"Error: {src_dir} not found", file=sys.stderr)
-        raise SystemExit(1)
+        raise ValidationError(f"Error: {src_dir} not found")
 
     if not parser_c.is_file():
-        print(f"Error: {parser_c} not found", file=sys.stderr)
-        print(f"Run 'tree-sitter generate' in {grammar_dir} first", file=sys.stderr)
-        raise SystemExit(1)
+        raise ArtifactMissingError(f"Error: {parser_c} not found\nRun 'tree-sitter generate' in {grammar_dir} first")
 
 
 def detect_platform_flag() -> str:
@@ -33,9 +33,7 @@ def detect_platform_flag() -> str:
         return "-shared"
     if system == "Darwin":
         return "-dynamiclib"
-
-    print(f"Unsupported platform: {system}", file=sys.stderr)
-    raise SystemExit(1)
+    raise ValidationError(f"Unsupported platform: {system}")
 
 
 def detect_scanner(grammar_dir: Path) -> tuple[str, Path | None]:
@@ -76,28 +74,52 @@ def compile_shared_library(
     cmd.extend(["-o", str(output_so)])
 
     print(f"Compiling: {grammar_dir} -> {output_so}", file=sys.stderr)
-    subprocess.run(cmd, check=True)
+    result = subprocess.run(cmd, check=False, capture_output=True, text=True)
+    if result.returncode != 0:
+        raise SubprocessExecutionError(
+            command=cmd,
+            returncode=result.returncode,
+            stderr=result.stderr.strip(),
+            stdout=result.stdout.strip(),
+            message="Grammar compilation failed",
+        )
 
     if not output_so.is_file():
-        print(f"Error: Build failed - {output_so} not created", file=sys.stderr)
-        raise SystemExit(1)
+        raise ArtifactMissingError(f"Error: Build failed - {output_so} not created")
 
     print(f"Build successful: {output_so}", file=sys.stderr)
 
 
-def main() -> None:
+def map_error(exc: Exception) -> int:
+    if isinstance(exc, (ValidationError, ArtifactMissingError)):
+        print(exc, file=sys.stderr)
+        return 1
+    if isinstance(exc, SubprocessExecutionError):
+        print(exc, file=sys.stderr)
+        if exc.stderr:
+            print(exc.stderr, file=sys.stderr)
+        return 1
+    print(exc, file=sys.stderr)
+    return 1
+
+
+def main() -> int:
     if len(sys.argv) != 3:
         print_usage()
-        raise SystemExit(1)
+        return 1
 
     grammar_dir = Path(sys.argv[1])
     output_so = Path(sys.argv[2])
 
-    validate_inputs(grammar_dir)
-    ldflag = detect_platform_flag()
-    compiler, scanner = detect_scanner(grammar_dir)
-    compile_shared_library(compiler, ldflag, grammar_dir, output_so, scanner)
+    try:
+        validate_inputs(grammar_dir)
+        ldflag = detect_platform_flag()
+        compiler, scanner = detect_scanner(grammar_dir)
+        compile_shared_library(compiler, ldflag, grammar_dir, output_so, scanner)
+    except Exception as exc:
+        return map_error(exc)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

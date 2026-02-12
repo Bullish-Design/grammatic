@@ -2,21 +2,44 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 from grammatic.contracts import BuildRequest, DoctorRequest, GenerateRequest, ParseRequest, TestGrammarRequest
+from grammatic.errors import (
+    ArtifactMissingError,
+    GrammaticError,
+    LogWriteError,
+    SubprocessExecutionError,
+    ToolMissingError,
+    ValidationError,
+)
 from grammatic.workflows import handle_build, handle_doctor, handle_generate, handle_parse, handle_test_grammar
 
 
-def _print_diagnostics(result: object) -> None:
-    import sys
+EXIT_CODES: dict[type[GrammaticError], int] = {
+    ValidationError: 2,
+    ToolMissingError: 3,
+    SubprocessExecutionError: 4,
+    ArtifactMissingError: 5,
+    LogWriteError: 6,
+}
 
+
+def _print_diagnostics(result: object) -> None:
     diagnostics = getattr(result, "diagnostics", [])
     for diagnostic in diagnostics:
         if diagnostic.level == "error":
             print(diagnostic.message, file=sys.stderr)
         else:
             print(diagnostic.message)
+
+
+def _map_error(exc: Exception) -> tuple[int, str]:
+    if isinstance(exc, GrammaticError):
+        code = EXIT_CODES.get(type(exc), 1)
+        return code, f"[grammatic:{type(exc).__name__}] {exc}"
+    return 1, f"[grammatic:UnhandledError] {exc}"
 
 
 def main() -> int:
@@ -34,16 +57,26 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    if args.command == "generate":
-        result = handle_generate(GenerateRequest(grammar=args.grammar, repo_root=args.repo_root))
-    elif args.command == "build":
-        result = handle_build(BuildRequest(grammar=args.grammar, repo_root=args.repo_root))
-    elif args.command == "parse":
-        result = handle_parse(ParseRequest(grammar=args.grammar, repo_root=args.repo_root, source=args.source))
-    elif args.command == "test-grammar":
-        result = handle_test_grammar(TestGrammarRequest(grammar=args.grammar, repo_root=args.repo_root))
-    else:
-        result = handle_doctor(DoctorRequest(grammar=args.grammar, repo_root=args.repo_root))
+    try:
+        if args.command == "generate":
+            result = handle_generate(GenerateRequest(grammar=args.grammar, repo_root=args.repo_root))
+        elif args.command == "build":
+            result = handle_build(BuildRequest(grammar=args.grammar, repo_root=args.repo_root))
+        elif args.command == "parse":
+            result = handle_parse(ParseRequest(grammar=args.grammar, repo_root=args.repo_root, source=args.source))
+        elif args.command == "test-grammar":
+            result = handle_test_grammar(TestGrammarRequest(grammar=args.grammar, repo_root=args.repo_root))
+        else:
+            result = handle_doctor(DoctorRequest(grammar=args.grammar, repo_root=args.repo_root))
+    except Exception as exc:  # central CLI mapper
+        code, message = _map_error(exc)
+        print(message, file=sys.stderr)
+        if isinstance(exc, SubprocessExecutionError):
+            if exc.stderr:
+                print(exc.stderr, file=sys.stderr)
+            elif exc.stdout:
+                print(exc.stdout, file=sys.stderr)
+        return code
 
     _print_diagnostics(result)
 

@@ -13,11 +13,11 @@ from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from grammatic.errors import LogWriteError, ValidationError
 from grammatic.models import BuildLogEntry, ParseLogEntry
 
 
 def count_nodes(node: dict[str, Any] | None) -> int:
-    """Count all nodes in a parse tree recursively."""
     if not isinstance(node, dict):
         return 0
 
@@ -30,14 +30,12 @@ def count_nodes(node: dict[str, Any] | None) -> int:
 
 
 def has_errors(node: dict[str, Any]) -> bool:
-    """Detect whether any node in the parse tree has type ERROR."""
     if node.get("type") == "ERROR":
         return True
     return any(has_errors(child) for child in node.get("children", []))
 
 
 def lookup_grammar_version(grammar: str, builds_log_path: Path) -> str:
-    """Find most recent commit for a grammar from builds JSONL logs."""
     if not builds_log_path.exists():
         return "unknown"
 
@@ -51,18 +49,16 @@ def lookup_grammar_version(grammar: str, builds_log_path: Path) -> str:
                 entry = json.loads(line)
                 if entry.get("grammar") == grammar:
                     latest_commit = str(entry.get("commit", "unknown"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:  # pragma: no cover - warning path only
-        print(f"Warning: Could not lookup grammar version: {exc}", file=sys.stderr)
-        return "unknown"
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:  # pragma: no cover
+        raise LogWriteError(f"Could not lookup grammar version: {exc}", path=builds_log_path) from exc
 
     return latest_commit
 
 
 def detect_compiler(grammar: str, project_root: Path) -> str:
-    """Detect compiler based on scanner file presence in grammar source."""
     grammar_dir = (project_root / "grammars" / grammar).resolve()
     if not grammar_dir.exists():
-        raise FileNotFoundError(
+        raise ValidationError(
             f"Grammar directory not found for '{grammar}': {grammar_dir}. "
             "Pass --project-root to set the repository root."
         )
@@ -75,15 +71,13 @@ def detect_compiler(grammar: str, project_root: Path) -> str:
 
 
 def resolve_project_root(project_root_arg: str | None) -> Path:
-    """Resolve project root from CLI arg or current working directory."""
     project_root = Path(project_root_arg).resolve() if project_root_arg else Path.cwd().resolve()
     if not project_root.exists() or not project_root.is_dir():
-        raise FileNotFoundError(f"Project root directory does not exist: {project_root}")
+        raise ValidationError(f"Project root directory does not exist: {project_root}")
     return project_root
 
 
 def resolve_path(project_root: Path, user_path: str) -> Path:
-    """Resolve user-supplied paths relative to project root."""
     path = Path(user_path)
     if not path.is_absolute():
         path = project_root / path
@@ -91,7 +85,6 @@ def resolve_path(project_root: Path, user_path: str) -> Path:
 
 
 def log_build(args: argparse.Namespace) -> None:
-    """Write build event JSON to stdout."""
     project_root = resolve_project_root(args.project_root)
     so_path = resolve_path(project_root, args.so_path)
     entry = BuildLogEntry(
@@ -109,7 +102,6 @@ def log_build(args: argparse.Namespace) -> None:
 
 
 def log_parse(args: argparse.Namespace) -> None:
-    """Write parse event JSON to stdout."""
     project_root = resolve_project_root(args.project_root)
     builds_log_path = (
         resolve_path(project_root, args.builds_log)
@@ -120,18 +112,15 @@ def log_parse(args: argparse.Namespace) -> None:
     parse_result_path = resolve_path(project_root, args.parse_result)
     parse_data = json.loads(parse_result_path.read_text())
     if not isinstance(parse_data, dict):
-        print("Error: parse result JSON must be an object", file=sys.stderr)
-        raise SystemExit(1)
+        raise ValidationError("Parse result JSON must be an object")
 
     root = parse_data.get("root_node")
     if not isinstance(root, dict):
-        print("Error: parse result JSON must include a 'root_node' object", file=sys.stderr)
-        raise SystemExit(1)
+        raise ValidationError("Parse result JSON must include a 'root_node' object")
 
     root_type = root.get("type")
     if not isinstance(root_type, str) or not root_type:
-        print("Error: parse result JSON root_node must include a non-empty 'type' string", file=sys.stderr)
-        raise SystemExit(1)
+        raise ValidationError("Parse result JSON root_node must include a non-empty 'type' string")
 
     entry = ParseLogEntry(
         timestamp=datetime.now(),
@@ -146,7 +135,7 @@ def log_parse(args: argparse.Namespace) -> None:
     print(entry.model_dump_json())
 
 
-def main() -> None:
+def main() -> int:
     parser = argparse.ArgumentParser(description="Log grammar build/parse events as JSONL")
     parser.add_argument("--project-root", help="Project root used to resolve relative paths")
     parser.add_argument("--builds-log", help="Path to builds JSONL (relative paths resolved from project root)")
@@ -173,9 +162,12 @@ def main() -> None:
             log_build(args)
         else:
             log_parse(args)
-    except FileNotFoundError as exc:
-        parser.error(str(exc))
+    except (ValidationError, LogWriteError, FileNotFoundError, json.JSONDecodeError) as exc:
+        print(exc, file=sys.stderr)
+        return 1
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

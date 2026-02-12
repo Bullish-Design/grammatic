@@ -4,9 +4,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
+from grammatic.errors import ValidationError
+
 
 def check_grammar(project_root: Path, grammar: str) -> list[str]:
-    """Check grammar and return a list of issues."""
     issues: list[str] = []
     grammar_dir = project_root / "grammars" / grammar
 
@@ -44,8 +46,7 @@ def check_grammar(project_root: Path, grammar: str) -> list[str]:
 
 def main() -> int:
     if len(sys.argv) != 2:
-        print("Usage: grammar_doctor.py GRAMMAR", file=sys.stderr)
-        return 1
+        raise ValidationError("Usage: grammar_doctor.py GRAMMAR")
 
     project_root = Path(__file__).resolve().parents[1]
     grammar = sys.argv[1]
@@ -62,4 +63,8 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    try:
+        raise SystemExit(main())
+    except ValidationError as exc:
+        print(exc, file=sys.stderr)
+        raise SystemExit(1) from exc

@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pydantic import ValidationError as PydanticValidationError
+
 from grammatic.contracts import Diagnostic, DoctorRequest, DoctorResult
+from grammatic.errors import ValidationError
 from grammatic.workspace import WorkshopLayout
 
 from .common import now_ms
@@ -8,8 +11,11 @@ from .common import now_ms
 
 def handle_doctor(request: DoctorRequest) -> DoctorResult:
     started = now_ms()
-    layout = WorkshopLayout(repo_root=request.repo_root)
-    workspace = layout.for_grammar(request.grammar)
+    try:
+        layout = WorkshopLayout(repo_root=request.repo_root)
+        workspace = layout.for_grammar(request.grammar)
+    except (ValueError, PydanticValidationError) as exc:
+        raise ValidationError(str(exc)) from exc
 
     issues: list[str] = []
     if not (workspace.src_dir / "parser.c").is_file():
