@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "log_writer.py"
+
+spec = importlib.util.spec_from_file_location("log_writer", SCRIPT)
+assert spec is not None and spec.loader is not None
+log_writer = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(log_writer)
 
 
 class TestLogWriter:
@@ -284,6 +291,59 @@ class TestLogWriter:
 
         log_entry = json.loads(result.stdout)
         assert log_entry["grammar_version"] == "unknown"
+
+    def test_grammar_version_lookup_uses_streaming_not_full_file_read(self, tmp_path: Path, monkeypatch) -> None:
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+        builds_log = logs_dir / "builds.jsonl"
+        builds_log.write_text(
+            "\n".join(
+                [
+                    json.dumps({"grammar": "other", "commit": "old"}),
+                    json.dumps({"grammar": "test", "commit": "abc123"}),
+                ]
+            )
+            + "\n"
+        )
+
+        def fail_read_text(self: Path, *args, **kwargs):
+            raise AssertionError("read_text should not be used for grammar lookup")
+
+        monkeypatch.setattr(Path, "read_text", fail_read_text)
+
+        assert log_writer.lookup_grammar_version("test", builds_log) == "abc123"
+
+    def test_grammar_version_lookup_large_log_prefers_latest_match(self, tmp_path: Path) -> None:
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+        builds_log = logs_dir / "builds.jsonl"
+
+        total_entries = 50000
+        with builds_log.open("w", encoding="utf-8") as handle:
+            for i in range(total_entries):
+                grammar = "test" if i % 97 == 0 else "other"
+                commit = f"commit-{i}"
+                handle.write(json.dumps({"grammar": grammar, "commit": commit}) + "\n")
+            handle.write(json.dumps({"grammar": "test", "commit": "latest-commit"}) + "\n")
+
+        started = time.perf_counter()
+        version = log_writer.lookup_grammar_version("test", builds_log)
+        elapsed = time.perf_counter() - started
+
+        assert version == "latest-commit"
+        assert elapsed < 2.0
+
+    def test_grammar_version_lookup_invalid_json_warns_and_falls_back(self, tmp_path: Path, capsys) -> None:
+        logs_dir = tmp_path / "logs"
+        logs_dir.mkdir()
+        builds_log = logs_dir / "builds.jsonl"
+        builds_log.write_text('{"grammar": "test", "commit": "ok"}\nnot-json\n')
+
+        version = log_writer.lookup_grammar_version("test", builds_log)
+        captured = capsys.readouterr()
+
+        assert version == "unknown"
+        assert "Warning: Could not lookup grammar version" in captured.err
 
 
 class TestLogValidation:
