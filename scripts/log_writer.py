@@ -82,9 +82,9 @@ def resolve_project_root(project_root_arg: str | None) -> Path:
     return project_root
 
 
-def resolve_from_project_root(path_arg: str, project_root: Path) -> Path:
-    """Resolve a possibly-relative path from project root."""
-    path = Path(path_arg)
+def resolve_path(project_root: Path, user_path: str) -> Path:
+    """Resolve user-supplied paths relative to project root."""
+    path = Path(user_path)
     if not path.is_absolute():
         path = project_root / path
     return path.resolve()
@@ -93,7 +93,7 @@ def resolve_from_project_root(path_arg: str, project_root: Path) -> Path:
 def log_build(args: argparse.Namespace) -> None:
     """Write build event JSON to stdout."""
     project_root = resolve_project_root(args.project_root)
-    so_path = resolve_from_project_root(args.so_path, project_root)
+    so_path = resolve_path(project_root, args.so_path)
     entry = BuildLogEntry(
         timestamp=datetime.now(),
         grammar=args.grammar,
@@ -112,12 +112,12 @@ def log_parse(args: argparse.Namespace) -> None:
     """Write parse event JSON to stdout."""
     project_root = resolve_project_root(args.project_root)
     builds_log_path = (
-        resolve_from_project_root(args.builds_log, project_root)
+        resolve_path(project_root, args.builds_log)
         if args.builds_log
         else (project_root / "logs" / "builds.jsonl").resolve()
     )
 
-    parse_result_path = resolve_from_project_root(args.parse_result, project_root)
+    parse_result_path = resolve_path(project_root, args.parse_result)
     parse_data = json.loads(parse_result_path.read_text())
     if not isinstance(parse_data, dict):
         print("Error: parse result JSON must be an object", file=sys.stderr)
@@ -137,7 +137,7 @@ def log_parse(args: argparse.Namespace) -> None:
         timestamp=datetime.now(),
         grammar=args.grammar,
         grammar_version=lookup_grammar_version(args.grammar, builds_log_path),
-        source_file=resolve_from_project_root(args.source, project_root),
+        source_file=resolve_path(project_root, args.source),
         node_count=count_nodes(root),
         has_errors=has_errors(root),
         parse_time_ms=args.parse_time,
