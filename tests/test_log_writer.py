@@ -245,6 +245,59 @@ class TestLogWriter:
         log_entry = json.loads(result.stdout)
         assert log_entry["node_count"] == 5
 
+
+    def test_parse_log_missing_root_node_fails(self, tmp_path: Path) -> None:
+        parse_result = tmp_path / "parse_missing_root.json"
+        parse_result.write_text(json.dumps({"not_root_node": {"type": "source"}}))
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "parse",
+                "--grammar",
+                "test",
+                "--source",
+                "tests/fixtures/sample.py",
+                "--parse-result",
+                str(parse_result),
+                "--parse-time",
+                "10",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        assert result.returncode == 1
+        assert "must include a 'root_node' object" in result.stderr
+
+    def test_parse_log_root_node_missing_type_fails(self, tmp_path: Path) -> None:
+        parse_result = tmp_path / "parse_root_missing_type.json"
+        parse_result.write_text(json.dumps({"root_node": {"children": []}}))
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "parse",
+                "--grammar",
+                "test",
+                "--source",
+                "tests/fixtures/sample.py",
+                "--parse-result",
+                str(parse_result),
+                "--parse-time",
+                "10",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        assert result.returncode == 1
+        assert "must include a non-empty 'type' string" in result.stderr
+
     def test_grammar_version_lookup(self, tmp_path: Path, monkeypatch) -> None:
         logs_dir = tmp_path / "logs"
         logs_dir.mkdir()

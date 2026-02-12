@@ -16,11 +16,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 from grammatic.models import BuildLogEntry, ParseLogEntry
 
 
-def count_nodes(node: dict[str, Any]) -> int:
+def count_nodes(node: dict[str, Any] | None) -> int:
     """Count all nodes in a parse tree recursively."""
+    if not isinstance(node, dict):
+        return 0
+
     count = 1
-    for child in node.get("children", []):
-        count += count_nodes(child)
+    children = node.get("children", [])
+    if isinstance(children, list):
+        for child in children:
+            count += count_nodes(child)
     return count
 
 
@@ -105,21 +110,20 @@ def log_build(args: argparse.Namespace) -> None:
 
 def log_parse(args: argparse.Namespace) -> None:
     """Write parse event JSON to stdout."""
-    project_root = resolve_project_root(args.project_root)
-    parse_result_path = resolve_from_project_root(args.parse_result, project_root)
-    if not parse_result_path.exists():
-        raise FileNotFoundError(f"Parse result file not found: {parse_result_path}")
+    parse_data = json.loads(Path(args.parse_result).read_text())
+    if not isinstance(parse_data, dict):
+        print("Error: parse result JSON must be an object", file=sys.stderr)
+        raise SystemExit(1)
 
-    builds_log_path = (
-        resolve_from_project_root(args.builds_log, project_root)
-        if args.builds_log
-        else (project_root / "logs" / "builds.jsonl").resolve()
-    )
-    if args.builds_log and not builds_log_path.exists():
-        raise FileNotFoundError(f"Builds log file not found: {builds_log_path}")
+    root = parse_data.get("root_node")
+    if not isinstance(root, dict):
+        print("Error: parse result JSON must include a 'root_node' object", file=sys.stderr)
+        raise SystemExit(1)
 
-    parse_data = json.loads(parse_result_path.read_text())
-    root = parse_data.get("root_node", {})
+    root_type = root.get("type")
+    if not isinstance(root_type, str) or not root_type:
+        print("Error: parse result JSON root_node must include a non-empty 'type' string", file=sys.stderr)
+        raise SystemExit(1)
 
     entry = ParseLogEntry(
         timestamp=datetime.now(),
@@ -129,7 +133,7 @@ def log_parse(args: argparse.Namespace) -> None:
         node_count=count_nodes(root),
         has_errors=has_errors(root),
         parse_time_ms=args.parse_time,
-        root_node_type=root.get("type", "unknown"),
+        root_node_type=root_type,
     )
     print(entry.model_dump_json())
 
