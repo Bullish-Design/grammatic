@@ -111,13 +111,41 @@ Testing is the center of the project:
 - `doctor` identifies common grammar setup/quality issues
 - parse output is useful but secondary to test outcomes
 
-## Logging and Provenance
+## Provenance Model
 
-Logs are append-only JSONL for practical reproducibility.
+Grammatic uses append-only JSONL logs for workshop provenance. Every relevant workflow execution must append an event for both successful and failed outcomes.
 
-- Build events
-- Parse events
-- Tooling metadata and structured fields validated by Pydantic models
+Required fields for each event:
+
+- `event_type`
+- `timestamp`
+- `grammar`
+- `status`
+- `duration_ms`
+
+Optional diagnostics (especially for failures):
+
+- `error_code`
+- `stderr_excerpt`
+
+Build and parse records serve different purposes:
+
+- **Build events** are the primary provenance stream and should capture outcome status for workshop iteration.
+- **Parse telemetry** is secondary support data for spot checks and diagnostics.
+
+Canonical event schemas should be defined with Pydantic in `src/grammatic/models.py` (or a successor contract module if schemas are relocated).
+
+Successful build event example:
+
+```json
+{"event_type":"build","timestamp":"2026-01-15T10:20:30Z","grammar":"python","status":"success","duration_ms":912}
+```
+
+Failed build event example:
+
+```json
+{"event_type":"build","timestamp":"2026-01-15T10:21:02Z","grammar":"python","status":"failure","duration_ms":487,"error_code":"gcc_compile_failed","stderr_excerpt":"cc1plus: fatal error: scanner.cc: No such file or directory"}
+```
 
 ## Development Environment
 
