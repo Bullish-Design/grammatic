@@ -57,14 +57,28 @@ rebuild GRAMMAR:
 
 parse GRAMMAR SOURCE: init
     #!/usr/bin/env bash
+    set -euo pipefail
+
     grammar_so="{{project_root}}/build/{{GRAMMAR}}/{{GRAMMAR}}.so"
 
     just check-file "$grammar_so" "Error: built grammar not found: $grammar_so. Run 'just build {{GRAMMAR}}' first"
     just check-file "{{SOURCE}}" "Error: source file not found: {{SOURCE}}"
 
     parse_result=$(mktemp)
+    trap 'rm -f "$parse_result"' EXIT
+
     start_ms=$(python -c 'import time; print(int(time.time() * 1000))')
     tree-sitter parse "{{SOURCE}}" --language "$grammar_so" --json > "$parse_result"
+    [ -s "$parse_result" ] || {
+        echo "Error: parse output is empty" >&2
+        exit 1
+    }
+
+    if ! jq -e '.' "$parse_result" > /dev/null; then
+        echo "Error: parse output is not valid JSON" >&2
+        exit 1
+    fi
+
     end_ms=$(python -c 'import time; print(int(time.time() * 1000))')
     parse_time_ms=$((end_ms - start_ms))
 
@@ -74,10 +88,9 @@ parse GRAMMAR SOURCE: init
         --parse-result "$parse_result" \
         --parse-time "$parse_time_ms" >> "{{project_root}}/logs/parses.jsonl"
 
-    cat "$parse_result" | jq '.'
+    jq '.' "$parse_result"
     echo ""
     echo "Parse logged to parses.jsonl"
-    rm -f "$parse_result"
 
 test-grammar GRAMMAR:
     #!/usr/bin/env bash

@@ -125,6 +125,23 @@ class TestParse:
 
         assert result.returncode == 1
         assert "not found" in result.stderr.lower()
+        assert "Parse logged" not in result.stdout
+        assert not (test_repo / "logs" / "parses.jsonl").exists()
+
+    def test_parse_missing_source_returns_nonzero_and_does_not_log(self, minimal_grammar_built: Path) -> None:
+        missing_file = minimal_grammar_built / "missing.txt"
+
+        result = subprocess.run(
+            ["just", "parse", "minimal", str(missing_file)],
+            capture_output=True,
+            text=True,
+            cwd=minimal_grammar_built,
+        )
+
+        assert result.returncode == 1
+        assert "source file not found" in result.stderr
+        assert "Parse logged" not in result.stdout
+        assert not (minimal_grammar_built / "logs" / "parses.jsonl").exists()
 
     def test_parse_detects_errors_field(self, minimal_grammar_built: Path) -> None:
         test_file = minimal_grammar_built / "test.txt"
