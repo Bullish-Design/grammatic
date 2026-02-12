@@ -37,6 +37,20 @@ Parsing exists, but is secondary to grammar iteration and test quality.
    - Keep append-only JSONL logs for workshop events
    - Pydantic models are required for workflow request/response contracts and event logging
 
+## Developer UX Principles
+
+- Every workflow command has a typed request object and typed result object.
+- Validation is centralized in model validators/path services, not duplicated in shell snippets.
+- CLI layer only parses args and renders errors/results.
+- Test strategy maps directly to model and workflow behavior.
+
+| Operation | Typed request contract | Typed result contract |
+| --- | --- | --- |
+| `build` | `BuildRequest` (grammar identity + workspace/build context) | `BuildResult` (status, artifact location, diagnostics, duration) |
+| `parse` | `ParseRequest` (grammar identity + source input) | `ParseResult` (status, parse summary/tree output, diagnostics, duration) |
+| `doctor` | `DoctorRequest` (grammar identity + check profile/options) | `DoctorResult` (status, findings, recommendations, duration) |
+| `test-grammar` | `TestGrammarRequest` (grammar identity + corpus/test options) | `TestGrammarResult` (status, pass/fail counts, diagnostics, duration) |
+
 ## Canonical Workflow
 
 Use this loop as the default process:
