@@ -29,6 +29,7 @@ def test_repo(tmp_path: Path) -> Path:
     (repo / "grammars").mkdir(parents=True)
     (repo / "build").mkdir(parents=True)
     (repo / "logs").mkdir(parents=True)
+    (repo / "scripts").mkdir(parents=True)
 
     return repo
 
