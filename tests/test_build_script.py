@@ -7,7 +7,8 @@ from pathlib import Path
 import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-BUILD_SCRIPT = PROJECT_ROOT / "scripts" / "build_grammar.py"
+CANONICAL_BUILD_SCRIPT = PROJECT_ROOT / "scripts" / "build_grammar.py"
+WRAPPER_BUILD_SCRIPT = PROJECT_ROOT / "scripts" / "build_grammar.sh"
 
 
 def require_toolchain() -> None:
@@ -66,7 +67,7 @@ class TestBuildScript:
         output_so = tmp_path / "minimal.so"
 
         result = subprocess.run(
-            [str(BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
+            [str(CANONICAL_BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -82,7 +83,7 @@ class TestBuildScript:
         output_so = tmp_path / "scanner_test.so"
 
         result = subprocess.run(
-            [str(BUILD_SCRIPT), str(scanner_grammar), str(output_so)],
+            [str(CANONICAL_BUILD_SCRIPT), str(scanner_grammar), str(output_so)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -101,7 +102,7 @@ class TestBuildScript:
         output_so = tmp_path / "missing_parser.so"
 
         result = subprocess.run(
-            [str(BUILD_SCRIPT), str(grammar_dir), str(output_so)],
+            [str(CANONICAL_BUILD_SCRIPT), str(grammar_dir), str(output_so)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -116,7 +117,22 @@ class TestBuildScript:
         output_so = tmp_path / "nested" / "out" / "minimal.so"
 
         result = subprocess.run(
-            [str(BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
+            [str(CANONICAL_BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
+            capture_output=True,
+            text=True,
+            cwd=PROJECT_ROOT,
+        )
+
+        assert result.returncode == 0, f"Build failed: {result.stderr}"
+        assert output_so.exists()
+
+
+    def test_shell_wrapper_delegates_to_canonical_script(self, minimal_grammar: Path, tmp_path: Path) -> None:
+        """Compatibility shell wrapper should delegate to Python build script."""
+        output_so = tmp_path / "wrapper" / "minimal.so"
+
+        result = subprocess.run(
+            [str(WRAPPER_BUILD_SCRIPT), str(minimal_grammar), str(output_so)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
@@ -128,7 +144,7 @@ class TestBuildScript:
     def test_usage_error_when_args_missing(self) -> None:
         """Script exits non-zero with usage info when args are missing."""
         result = subprocess.run(
-            [str(BUILD_SCRIPT)],
+            [str(CANONICAL_BUILD_SCRIPT)],
             capture_output=True,
             text=True,
             cwd=PROJECT_ROOT,
