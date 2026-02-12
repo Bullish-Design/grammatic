@@ -110,7 +110,7 @@ new-grammar NAME:
         exit 1
     fi
 
-    scripts/new_grammar.sh "{{project_root}}" "{{NAME}}"
+    "{{project_root}}/scripts/new_grammar.sh" "{{project_root}}" "{{NAME}}"
 
 
 # List all available grammars
