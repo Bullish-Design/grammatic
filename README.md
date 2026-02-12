@@ -28,3 +28,6 @@ just parse python tests/fixtures/example.py
 - Use `uv run <command>` for Python-only tasks (for example, running scripts or tests) once your environment is bootstrapped.
 - Use `devenv shell` when you need the full toolchain (`tree-sitter`, compilers, `jq`, `just`) or when setting up a fresh machine/session, since it provides the pinned system dependencies and canonical Python runtime.
 
+## Build Implementation
+
+Grammatic uses a single canonical build entrypoint: `scripts/build_grammar.py`. The `scripts/build_grammar.sh` file is only a thin compatibility wrapper that delegates to the Python script.

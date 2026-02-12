@@ -1,21 +1,32 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "log_writer.py"
 
+spec = importlib.util.spec_from_file_location("log_writer", SCRIPT)
+assert spec is not None and spec.loader is not None
+log_writer = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(log_writer)
+
 
 class TestLogWriter:
     def test_build_log_generation(self) -> None:
+        (ROOT / "grammars" / "test" / "src").mkdir(parents=True, exist_ok=True)
+
         result = subprocess.run(
             [
                 sys.executable,
                 str(SCRIPT),
+                "--project-root",
+                str(ROOT),
                 "build",
                 "--grammar",
                 "test",
@@ -41,12 +52,11 @@ class TestLogWriter:
         assert log_entry["grammar"] == "test"
         assert log_entry["commit"] == "abc123"
         assert log_entry["repo_url"] == "https://example.com/test"
-        assert log_entry["so_path"] == "build/test.so"
+        assert log_entry["so_path"] == str((ROOT / "build" / "test.so").resolve())
         assert log_entry["build_success"] is True
         assert log_entry["build_time_ms"] == 1234
         assert log_entry["compiler"] == "gcc"
         assert log_entry["tree_sitter_version"] == "0.21.0"
-
 
     def test_build_log_generation_with_cpp_scanner(self, tmp_path: Path) -> None:
         grammar_dir = ROOT / "grammars" / "test" / "src"
@@ -59,6 +69,8 @@ class TestLogWriter:
                 [
                     sys.executable,
                     str(SCRIPT),
+                    "--project-root",
+                    str(ROOT),
                     "build",
                     "--grammar",
                     "test",
@@ -95,6 +107,8 @@ class TestLogWriter:
                 [
                     sys.executable,
                     str(SCRIPT),
+                    "--project-root",
+                    str(ROOT),
                     "build",
                     "--grammar",
                     "test",
@@ -128,6 +142,8 @@ class TestLogWriter:
             [
                 sys.executable,
                 str(SCRIPT),
+                "--project-root",
+                str(ROOT),
                 "parse",
                 "--grammar",
                 "test",
@@ -147,7 +163,7 @@ class TestLogWriter:
         log_entry = json.loads(result.stdout)
         assert log_entry["event_type"] == "parse"
         assert log_entry["grammar"] == "test"
-        assert log_entry["source_file"] == "tests/fixtures/sample.py"
+        assert log_entry["source_file"] == str((ROOT / "tests" / "fixtures" / "sample.py").resolve())
         assert log_entry["node_count"] == 3
         assert log_entry["has_errors"] is False
         assert log_entry["parse_time_ms"] == 12
@@ -161,6 +177,8 @@ class TestLogWriter:
             [
                 sys.executable,
                 str(SCRIPT),
+                "--project-root",
+                str(ROOT),
                 "parse",
                 "--grammar",
                 "test",
@@ -206,6 +224,8 @@ class TestLogWriter:
             [
                 sys.executable,
                 str(SCRIPT),
+                "--project-root",
+                str(ROOT),
                 "parse",
                 "--grammar",
                 "test",
@@ -225,6 +245,59 @@ class TestLogWriter:
         log_entry = json.loads(result.stdout)
         assert log_entry["node_count"] == 5
 
+
+    def test_parse_log_missing_root_node_fails(self, tmp_path: Path) -> None:
+        parse_result = tmp_path / "parse_missing_root.json"
+        parse_result.write_text(json.dumps({"not_root_node": {"type": "source"}}))
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "parse",
+                "--grammar",
+                "test",
+                "--source",
+                "tests/fixtures/sample.py",
+                "--parse-result",
+                str(parse_result),
+                "--parse-time",
+                "10",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        assert result.returncode == 1
+        assert "must include a 'root_node' object" in result.stderr
+
+    def test_parse_log_root_node_missing_type_fails(self, tmp_path: Path) -> None:
+        parse_result = tmp_path / "parse_root_missing_type.json"
+        parse_result.write_text(json.dumps({"root_node": {"children": []}}))
+
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPT),
+                "parse",
+                "--grammar",
+                "test",
+                "--source",
+                "tests/fixtures/sample.py",
+                "--parse-result",
+                str(parse_result),
+                "--parse-time",
+                "10",
+            ],
+            capture_output=True,
+            text=True,
+            cwd=ROOT,
+        )
+
+        assert result.returncode == 1
+        assert "must include a non-empty 'type' string" in result.stderr
+
     def test_grammar_version_lookup(self, tmp_path: Path, monkeypatch) -> None:
         logs_dir = tmp_path / "logs"
         logs_dir.mkdir()
@@ -239,6 +312,8 @@ class TestLogWriter:
             [
                 sys.executable,
                 str(SCRIPT),
+                "--project-root",
+                str(tmp_path),
                 "parse",
                 "--grammar",
                 "test",
@@ -267,6 +342,8 @@ class TestLogWriter:
             [
                 sys.executable,
                 str(SCRIPT),
+                "--project-root",
+                str(tmp_path),
                 "parse",
                 "--grammar",
                 "test",
@@ -285,13 +362,60 @@ class TestLogWriter:
         log_entry = json.loads(result.stdout)
         assert log_entry["grammar_version"] == "unknown"
 
+    def test_parse_with_non_root_working_directory(self, tmp_path: Path) -> None:
+        logs_dir = ROOT / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        builds_log = logs_dir / "builds.jsonl"
+        original = builds_log.read_text() if builds_log.exists() else None
+
+        nested_cwd = tmp_path / "nested" / "dir"
+        nested_cwd.mkdir(parents=True)
+
+        try:
+            builds_log.write_text(json.dumps({"grammar": "test", "commit": "nonroot123"}) + "\n")
+
+            result = subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--project-root",
+                    str(ROOT),
+                    "parse",
+                    "--grammar",
+                    "test",
+                    "--source",
+                    "tests/fixtures/sample.py",
+                    "--parse-result",
+                    "tests/fixtures/sample_parse.json",
+                    "--parse-time",
+                    "12",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+                cwd=nested_cwd,
+            )
+
+            log_entry = json.loads(result.stdout)
+            assert log_entry["grammar_version"] == "nonroot123"
+            assert log_entry["source_file"] == str((ROOT / "tests" / "fixtures" / "sample.py").resolve())
+        finally:
+            if original is None:
+                builds_log.unlink(missing_ok=True)
+            else:
+                builds_log.write_text(original)
+
 
 class TestLogValidation:
     def test_valid_jsonl_format(self) -> None:
+        (ROOT / "grammars" / "test" / "src").mkdir(parents=True, exist_ok=True)
+
         result = subprocess.run(
             [
                 sys.executable,
                 str(SCRIPT),
+                "--project-root",
+                str(ROOT),
                 "build",
                 "--grammar",
                 "test",
@@ -320,11 +444,14 @@ class TestLogValidation:
         log_file = tmp_path / "test.jsonl"
 
         for i in range(3):
+            (ROOT / "grammars" / f"test{i}" / "src").mkdir(parents=True, exist_ok=True)
             with log_file.open("a", encoding="utf-8") as handle:
                 subprocess.run(
                     [
                         sys.executable,
                         str(SCRIPT),
+                        "--project-root",
+                        str(ROOT),
                         "build",
                         "--grammar",
                         f"test{i}",

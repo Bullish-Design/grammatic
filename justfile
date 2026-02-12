@@ -199,7 +199,7 @@ query-builds N="10":
 query-builds-for GRAMMAR:
     #!/usr/bin/env bash
     if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
-        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/builds.jsonl"
+        jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl"
     fi
 
 query-parses N="10":
@@ -217,7 +217,7 @@ query-failures:
 query-parses-for GRAMMAR:
     #!/usr/bin/env bash
     if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl"
+        jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl"
     fi
 
 build-success-rate GRAMMAR:
@@ -226,7 +226,7 @@ build-success-rate GRAMMAR:
         echo '[]'
         exit 0
     fi
-    jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/builds.jsonl" \
+    jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl" \
         | jq -s "group_by(.build_success) | map({success: .[0].build_success, count: length})"
 
 avg-parse-time GRAMMAR:
@@ -235,7 +235,7 @@ avg-parse-time GRAMMAR:
         echo "0"
         exit 0
     fi
-    jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl" \
+    jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl" \
         | jq -s 'if length == 0 then 0 else (map(.parse_time_ms) | add / length) end'
 
 slowest-parses N="10":
@@ -250,7 +250,7 @@ slowest-parses N="10":
 grammar-versions GRAMMAR:
     #!/usr/bin/env bash
     if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl" \
+        jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl" \
             | jq -r '.grammar_version' \
             | sort | uniq -c
     fi
@@ -273,14 +273,35 @@ export-logs OUTPUT:
 
 validate-logs:
     #!/usr/bin/env bash
+    invalid=0
+
     echo "Validating builds.jsonl..."
     if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
-        jq -e '.' "{{project_root}}/logs/builds.jsonl" > /dev/null || echo "builds.jsonl has invalid JSON"
+        if jq -e '.' "{{project_root}}/logs/builds.jsonl" > /dev/null; then
+            echo "builds.jsonl is valid"
+        else
+            echo "builds.jsonl has invalid JSON" >&2
+            invalid=1
+        fi
+    else
+        echo "builds.jsonl not found, skipping"
     fi
 
     echo "Validating parses.jsonl..."
     if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -e '.' "{{project_root}}/logs/parses.jsonl" > /dev/null || echo "parses.jsonl has invalid JSON"
+        if jq -e '.' "{{project_root}}/logs/parses.jsonl" > /dev/null; then
+            echo "parses.jsonl is valid"
+        else
+            echo "parses.jsonl has invalid JSON" >&2
+            invalid=1
+        fi
+    else
+        echo "parses.jsonl not found, skipping"
+    fi
+
+    if [ "$invalid" -ne 0 ]; then
+        echo "Log validation failed" >&2
+        exit 1
     fi
 
     echo "Log validation complete"
