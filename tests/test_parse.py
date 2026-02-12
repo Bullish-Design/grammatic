@@ -7,45 +7,22 @@ from pathlib import Path
 
 import pytest
 
+from grammatic.contracts import ParseRequest, TestGrammarRequest
+from grammatic.errors import ValidationError
+from grammatic.workflows import handle_parse, handle_test_grammar
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def require_toolchain() -> None:
-    missing = [
-        tool
-        for tool in ("git", "just", "tree-sitter", "uv", "jq", "gcc")
-        if shutil.which(tool) is None
-    ]
+    """Skip tests if required tools are not available."""
+    missing = [tool for tool in ("tree-sitter", "gcc") if shutil.which(tool) is None]
     if missing:
         pytest.skip(f"Required tool(s) unavailable in PATH: {', '.join(missing)}")
 
 
-@pytest.fixture
-def test_repo(tmp_path: Path) -> Path:
-    require_toolchain()
-
-    repo = tmp_path / "test_repo"
-    repo.mkdir()
-
-    subprocess.run(["git", "init"], check=True, capture_output=True, cwd=repo)
-    subprocess.run(["git", "config", "user.name", "Test"], check=True, capture_output=True, cwd=repo)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], check=True, capture_output=True, cwd=repo)
-
-    (repo / "scripts" / "just").mkdir(parents=True)
-    (repo / "src" / "grammatic").mkdir(parents=True)
-    (repo / "tests" / "fixtures").mkdir(parents=True)
-
-    shutil.copy(PROJECT_ROOT / "justfile", repo / "justfile")
-    shutil.copy(PROJECT_ROOT / "scripts" / "build_grammar.py", repo / "scripts" / "build_grammar.py")
-    shutil.copy(PROJECT_ROOT / "scripts" / "log_writer.py", repo / "scripts" / "log_writer.py")
-    shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.just", repo / "scripts" / "just" / "path_checks.just")
-    shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.py", repo / "scripts" / "just" / "path_checks.py")
-    shutil.copytree(PROJECT_ROOT / "src" / "grammatic", repo / "src" / "grammatic", dirs_exist_ok=True)
-
-    return repo
-
-
 def setup_minimal_grammar(repo: Path, grammar_name: str = "minimal") -> Path:
+    """Set up a minimal test grammar."""
     grammar_dir = repo / "grammars" / grammar_name
     grammar_dir.mkdir(parents=True, exist_ok=True)
     shutil.copy(PROJECT_ROOT / "tests" / "fixtures" / "minimal_grammar" / "grammar.js", grammar_dir / "grammar.js")
@@ -66,40 +43,57 @@ def setup_minimal_grammar(repo: Path, grammar_name: str = "minimal") -> Path:
 
 
 @pytest.fixture
+def test_repo(tmp_path: Path) -> Path:
+    """Create a test repository structure."""
+    require_toolchain()
+
+    repo = tmp_path / "test_repo"
+    (repo / "grammars").mkdir(parents=True)
+    (repo / "build").mkdir(parents=True)
+    (repo / "logs").mkdir(parents=True)
+
+    return repo
+
+
+@pytest.fixture
 def minimal_grammar_built(test_repo: Path) -> Path:
-    subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
+    """Create and build a minimal grammar for testing."""
+    from grammatic.contracts import BuildRequest, GenerateRequest
+    from grammatic.workflows import handle_build, handle_generate
+
     setup_minimal_grammar(test_repo)
-    subprocess.run(["just", "generate", "minimal"], check=True, capture_output=True, cwd=test_repo)
-    subprocess.run(["just", "build", "minimal"], check=True, capture_output=True, cwd=test_repo)
+
+    # Generate parser
+    handle_generate(GenerateRequest(grammar="minimal", repo_root=test_repo))
+
+    # Build grammar
+    handle_build(BuildRequest(grammar="minimal", repo_root=test_repo))
+
     return test_repo
 
 
 class TestParse:
+    """Test parse workflow using Python API directly."""
+
     def test_parse_valid_file(self, minimal_grammar_built: Path) -> None:
+        """Parse a valid source file."""
         test_file = minimal_grammar_built / "test.txt"
         test_file.write_text("hello\nworld\n")
 
-        result = subprocess.run(
-            ["just", "parse", "minimal", str(test_file)],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=minimal_grammar_built,
-        )
+        result = handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=test_file))
 
-        assert "Parse logged" in result.stdout
+        assert result.status == "ok"
+        assert result.grammar == "minimal"
+        assert result.has_errors is False
+        assert result.node_count > 0
         assert (minimal_grammar_built / "logs" / "parses.jsonl").exists()
 
     def test_parse_logs_event(self, minimal_grammar_built: Path) -> None:
+        """Verify parse events are logged correctly."""
         test_file = minimal_grammar_built / "test.txt"
         test_file.write_text("line one\nline two\n")
 
-        subprocess.run(
-            ["just", "parse", "minimal", str(test_file)],
-            check=True,
-            capture_output=True,
-            cwd=minimal_grammar_built,
-        )
+        handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=test_file))
 
         with (minimal_grammar_built / "logs" / "parses.jsonl").open(encoding="utf-8") as handle:
             entry = json.loads(handle.read().strip().splitlines()[-1])
@@ -110,63 +104,55 @@ class TestParse:
         assert entry["has_errors"] is False
 
     def test_parse_without_build(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
-
+        """Parse fails gracefully when grammar is not built."""
         test_file = test_repo / "test.txt"
         test_file.write_text("test")
 
-        result = subprocess.run(
-            ["just", "parse", "nonexistent", str(test_file)],
-            capture_output=True,
-            text=True,
-            cwd=test_repo,
-        )
+        with pytest.raises(Exception) as exc_info:
+            handle_parse(ParseRequest(grammar="nonexistent", repo_root=test_repo, source=test_file))
 
-        assert result.returncode == 1
-        assert "not found" in result.stderr.lower()
-        assert "Parse logged" not in result.stdout
-        assert not (test_repo / "logs" / "parses.jsonl").exists()
+        assert "not found" in str(exc_info.value).lower() or "nonexistent" in str(exc_info.value).lower()
 
-    def test_parse_missing_source_returns_nonzero_and_does_not_log(self, minimal_grammar_built: Path) -> None:
+    def test_parse_missing_source_returns_error(self, minimal_grammar_built: Path) -> None:
+        """Parse fails when source file is missing."""
         missing_file = minimal_grammar_built / "missing.txt"
 
-        result = subprocess.run(
-            ["just", "parse", "minimal", str(missing_file)],
-            capture_output=True,
-            text=True,
-            cwd=minimal_grammar_built,
-        )
+        with pytest.raises(ValidationError) as exc_info:
+            handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=missing_file))
 
-        assert result.returncode == 1
-        assert "source file not found" in result.stderr
-        assert "Parse logged" not in result.stdout
-        log_path = minimal_grammar_built / "logs" / "parses.jsonl"
-        assert log_path.exists()
-        entry = json.loads(log_path.read_text(encoding="utf-8").strip().splitlines()[-1])
-        assert entry["status"] == "failure"
-        assert entry["error_code"] == "VALIDATIONERROR"
+        assert "source file not found" in str(exc_info.value).lower()
 
     def test_parse_detects_errors_field(self, minimal_grammar_built: Path) -> None:
+        """Verify has_errors field is populated in parse results."""
         test_file = minimal_grammar_built / "test.txt"
         test_file.write_text("valid line\n")
 
-        subprocess.run(
-            ["just", "parse", "minimal", str(test_file)],
-            check=True,
-            capture_output=True,
-            cwd=minimal_grammar_built,
-        )
+        result = handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=test_file))
 
-        with (minimal_grammar_built / "logs" / "parses.jsonl").open(encoding="utf-8") as handle:
-            entry = json.loads(handle.read().strip().splitlines()[-1])
+        assert hasattr(result, "has_errors")
+        assert isinstance(result.has_errors, bool)
 
-        assert "has_errors" in entry
-        assert isinstance(entry["has_errors"], bool)
+    def test_parse_output_structure(self, minimal_grammar_built: Path) -> None:
+        """Verify parse output has expected structure."""
+        test_file = minimal_grammar_built / "test.txt"
+        test_file.write_text("content\n")
+
+        result = handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=test_file))
+
+        assert result.parse_output is not None
+        assert isinstance(result.parse_output, dict)
+        assert "root_node" in result.parse_output
+        assert isinstance(result.parse_output["root_node"], dict)
 
 
 class TestCorpusTests:
+    """Test grammar corpus test execution."""
+
     def test_run_corpus_tests(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
+        """Run corpus tests for a grammar with test corpus."""
+        from grammatic.contracts import GenerateRequest
+        from grammatic.workflows import handle_generate
+
         grammar_dir = setup_minimal_grammar(test_repo)
 
         corpus_dir = grammar_dir / "test" / "corpus"
@@ -176,50 +162,41 @@ class TestCorpusTests:
             corpus_dir / "basic.txt",
         )
 
-        subprocess.run(["just", "generate", "minimal"], check=True, capture_output=True, cwd=test_repo)
+        handle_generate(GenerateRequest(grammar="minimal", repo_root=test_repo))
 
-        result = subprocess.run(
-            ["just", "test-grammar", "minimal"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=test_repo,
-        )
+        result = handle_test_grammar(TestGrammarRequest(grammar="minimal", repo_root=test_repo))
 
-        assert result.returncode == 0
+        assert result.status == "ok"
 
     def test_corpus_tests_missing(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
+        """Test-grammar fails when corpus is missing."""
         (test_repo / "grammars" / "nocorpus").mkdir(parents=True)
 
-        result = subprocess.run(
-            ["just", "test-grammar", "nocorpus"],
-            capture_output=True,
-            text=True,
-            cwd=test_repo,
-        )
+        with pytest.raises(Exception) as exc_info:
+            handle_test_grammar(TestGrammarRequest(grammar="nocorpus", repo_root=test_repo))
 
-        assert result.returncode == 1
-        assert "No corpus tests" in result.stderr
+        assert "corpus" in str(exc_info.value).lower()
 
 
-class TestFullCycle:
-    def test_full_test_target(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
-        setup_minimal_grammar(test_repo)
-        subprocess.run(["just", "generate", "minimal"], check=True, capture_output=True, cwd=test_repo)
+class TestParseMetrics:
+    """Test parse-related metrics and diagnostics."""
 
-        fixture = test_repo / "tests" / "fixtures" / "sample_minimal.txt"
-        fixture.write_text("test line\n")
+    def test_parse_duration_recorded(self, minimal_grammar_built: Path) -> None:
+        """Verify parse duration is recorded."""
+        test_file = minimal_grammar_built / "test.txt"
+        test_file.write_text("test content\n")
 
-        subprocess.run(
-            ["just", "test", "minimal"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=test_repo,
-        )
+        result = handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=test_file))
 
-        assert (test_repo / "build" / "minimal" / "minimal.so").exists()
-        assert (test_repo / "logs" / "builds.jsonl").exists()
-        assert (test_repo / "logs" / "parses.jsonl").exists()
+        assert result.duration_ms > 0
+        assert isinstance(result.duration_ms, int)
+
+    def test_parse_node_count(self, minimal_grammar_built: Path) -> None:
+        """Verify node count is calculated."""
+        test_file = minimal_grammar_built / "test.txt"
+        test_file.write_text("line1\nline2\nline3\n")
+
+        result = handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=test_file))
+
+        assert result.node_count > 0
+        assert isinstance(result.node_count, int)

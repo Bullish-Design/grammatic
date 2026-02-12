@@ -17,13 +17,14 @@ Parsing exists, but is secondary to grammar iteration and test quality.
 ## Core Principles
 
 1. **Use existing tools**
-   - Prefer `tree-sitter`, `gcc/g++`, `jq`, `git`, and `just`
+   - Prefer `tree-sitter`, `gcc/g++`, `git` for core functionality
    - Do not reimplement tree-sitter capabilities in Python
 
-2. **Keep orchestration thin**
-   - Python library modules own workflow orchestration and validation
-   - `just` targets remain convenience wrappers that delegate to Python entrypoints
-   - Keep shell scripts and recipes thin, explicit, and shell-friendly
+2. **Python-first architecture**
+   - All workflow orchestration lives in Python modules (`src/grammatic/workflows/`)
+   - `just` provides a convenient command surface as thin wrappers
+   - All validation, logging, and business logic in Python with typed contracts
+   - Tests should use Python APIs directly, not shell commands
 
 3. **Grammar-name-first UX**
    - Commands should be invoked with grammar names (not raw paths)
@@ -57,17 +58,15 @@ Use this loop as the default process:
 
 1. Add/create grammar (`just add-grammar` or `just new-grammar`)
 2. Edit grammar sources and corpus tests
-3. `just generate <grammar>`
-   - delegates to Python workflow entrypoints for orchestration and validation
-4. `just build <grammar>`
-   - delegates to Python workflow entrypoints for orchestration and validation
-5. `just test-grammar <grammar>`
-   - delegates to Python workflow entrypoints for orchestration and validation
-6. `just doctor <grammar>`
-   - delegates to Python workflow entrypoints for orchestration and validation
-7. Optional: `just parse <grammar> <source>` for spot validation
-   - delegates to Python workflow entrypoints for orchestration and validation
-8. Inspect logs and iterate
+3. `just generate <grammar>` → calls `handle_generate()`
+4. `just build <grammar>` → calls `handle_build()`
+5. `just test-grammar <grammar>` → calls `handle_test_grammar()`
+6. `just doctor <grammar>` → calls `handle_doctor()`
+7. Optional: `just parse <grammar> <source>` → calls `handle_parse()`
+8. Inspect logs using `LogRepository` or CLI commands
+9. Iterate
+
+All workflow handlers are in `src/grammatic/workflows/` and can be called directly from Python code.
 
 ## Path + Artifact Conventions
 
@@ -89,10 +88,11 @@ Agents should preserve these conventions when making changes.
 - Prioritize reliability and clarity over abstraction
 - Fail loudly with actionable error messages
 - Validate file/dir prerequisites before running tool commands
-- Implement workflow orchestration and validation in Python library modules
-- Use Pydantic models for workflow inputs/outputs and all structured event logs
-- Keep `just` and shell layers as thin wrappers that call Python entrypoints
-- Keep Python responsible for grammar-name to path resolution and normalization
+- **All workflow logic lives in Python modules** (`src/grammatic/workflows/`)
+- Use Pydantic models for all request/result contracts and event logs
+- `just` is a thin convenience layer only - no logic in justfile
+- Python handles all grammar-name to path resolution
+- Tests use Python APIs directly, not subprocess calls to `just`
 
 ## Scope for MVP
 
