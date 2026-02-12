@@ -174,7 +174,13 @@ The canonical runtime is Python 3.13 + `uv`, with `just`, `tree-sitter`, compile
 
 ## Pytest Troubleshooting
 
-If pytest reports environment/setup errors rather than assertion failures, check tool availability first:
+If pytest reports environment/setup errors rather than assertion failures, run the import preflight first so missing package setup fails once with an actionable message:
+
+```bash
+just preflight-import
+```
+
+Then check tool availability:
 
 ```bash
 just --version
