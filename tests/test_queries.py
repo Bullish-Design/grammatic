@@ -76,6 +76,15 @@ def repo_with_logs(test_repo: Path) -> Path:
                         "timestamp": "2026-01-01T12:00:00",
                     }
                 ),
+                json.dumps(
+                    {
+                        "event_type": "build",
+                        "grammar": 'odd"name$[]',
+                        "build_success": True,
+                        "build_time_ms": 90,
+                        "timestamp": "2026-01-01T12:30:00",
+                    }
+                ),
             ]
         )
         + "\n",
@@ -106,6 +115,16 @@ def repo_with_logs(test_repo: Path) -> Path:
                         "timestamp": "2026-01-01T14:00:00",
                     }
                 ),
+                json.dumps(
+                    {
+                        "event_type": "parse",
+                        "grammar": 'odd"name$[]',
+                        "grammar_version": "ghi789",
+                        "has_errors": False,
+                        "parse_time_ms": 7,
+                        "timestamp": "2026-01-01T14:30:00",
+                    }
+                ),
             ]
         )
         + "\n",
@@ -125,7 +144,7 @@ class TestLogQueries:
             cwd=repo_with_logs,
         )
         lines = result.stdout.strip().split("\n")
-        assert len(lines) == 3
+        assert len(lines) == 4
 
     def test_query_builds_for_grammar(self, repo_with_logs: Path) -> None:
         result = subprocess.run(
@@ -140,6 +159,50 @@ class TestLogQueries:
         assert len(lines) == 2
         assert all('"grammar":"test"' in line for line in lines)
 
+
+    def test_query_builds_for_grammar_with_special_chars(self, repo_with_logs: Path) -> None:
+        grammar = 'odd"name$[]'
+        result = subprocess.run(
+            ["just", "query-builds-for", grammar],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=repo_with_logs,
+        )
+
+        lines = result.stdout.strip().split("\n")
+        assert len(lines) == 1
+        entry = json.loads(lines[0])
+        assert entry["grammar"] == grammar
+
+    def test_query_parses_for_grammar_with_special_chars(self, repo_with_logs: Path) -> None:
+        grammar = 'odd"name$[]'
+        result = subprocess.run(
+            ["just", "query-parses-for", grammar],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=repo_with_logs,
+        )
+
+        lines = result.stdout.strip().split("\n")
+        assert len(lines) == 1
+        entry = json.loads(lines[0])
+        assert entry["grammar"] == grammar
+
+    def test_build_success_rate_with_special_chars(self, repo_with_logs: Path) -> None:
+        grammar = 'odd"name$[]'
+        result = subprocess.run(
+            ["just", "build-success-rate", grammar],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=repo_with_logs,
+        )
+
+        rates = json.loads(result.stdout)
+        assert rates == [{"success": True, "count": 1}]
+
     def test_query_parses(self, repo_with_logs: Path) -> None:
         result = subprocess.run(
             ["just", "query-parses", "10"],
@@ -150,7 +213,7 @@ class TestLogQueries:
         )
 
         lines = result.stdout.strip().split("\n")
-        assert len(lines) == 2
+        assert len(lines) == 3
 
     def test_query_failures(self, repo_with_logs: Path) -> None:
         result = subprocess.run(

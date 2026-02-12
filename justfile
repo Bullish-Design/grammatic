@@ -199,7 +199,7 @@ query-builds N="10":
 query-builds-for GRAMMAR:
     #!/usr/bin/env bash
     if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
-        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/builds.jsonl"
+        jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl"
     fi
 
 query-parses N="10":
@@ -217,7 +217,7 @@ query-failures:
 query-parses-for GRAMMAR:
     #!/usr/bin/env bash
     if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl"
+        jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl"
     fi
 
 build-success-rate GRAMMAR:
@@ -226,7 +226,7 @@ build-success-rate GRAMMAR:
         echo '[]'
         exit 0
     fi
-    jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/builds.jsonl" \
+    jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl" \
         | jq -s "group_by(.build_success) | map({success: .[0].build_success, count: length})"
 
 avg-parse-time GRAMMAR:
@@ -235,7 +235,7 @@ avg-parse-time GRAMMAR:
         echo "0"
         exit 0
     fi
-    jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl" \
+    jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl" \
         | jq -s 'if length == 0 then 0 else (map(.parse_time_ms) | add / length) end'
 
 slowest-parses N="10":
@@ -250,7 +250,7 @@ slowest-parses N="10":
 grammar-versions GRAMMAR:
     #!/usr/bin/env bash
     if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -c "select(.grammar == \"{{GRAMMAR}}\")" "{{project_root}}/logs/parses.jsonl" \
+        jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl" \
             | jq -r '.grammar_version' \
             | sort | uniq -c
     fi
