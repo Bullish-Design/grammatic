@@ -146,55 +146,25 @@ doctor GRAMMAR:
     PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" doctor "{{GRAMMAR}}"
 
 query-builds N="10":
-    #!/usr/bin/env bash
-    if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
-        jq -c '.' "{{project_root}}/logs/builds.jsonl" | tail -n "{{N}}"
-    fi
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" logs recent-builds --limit "{{N}}"
 
 query-builds-for GRAMMAR:
-    #!/usr/bin/env bash
-    grammar={{ quote(GRAMMAR) }}
-    if [ -f "{{project_root}}/logs/builds.jsonl" ]; then
-        jq --arg grammar "$grammar" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl"
-    fi
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" logs recent-builds --grammar "{{GRAMMAR}}" --all
 
 query-parses N="10":
-    #!/usr/bin/env bash
-    if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -c '.' "{{project_root}}/logs/parses.jsonl" | tail -n "{{N}}"
-    fi
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" logs recent-parses --limit "{{N}}"
 
 query-failures:
-    #!/usr/bin/env bash
-    if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -c 'select(.status == "failure" or .has_errors == true)' "{{project_root}}/logs/parses.jsonl"
-    fi
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" logs recent-parses --failures-only --all
 
 query-parses-for GRAMMAR:
-    #!/usr/bin/env bash
-    grammar={{ quote(GRAMMAR) }}
-    if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq --arg grammar "$grammar" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl"
-    fi
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" logs recent-parses --grammar "{{GRAMMAR}}" --all
 
 build-success-rate GRAMMAR:
-    #!/usr/bin/env bash
-    grammar={{ quote(GRAMMAR) }}
-    if [ ! -f "{{project_root}}/logs/builds.jsonl" ]; then
-        echo '[]'
-        exit 0
-    fi
-    jq --arg grammar "$grammar" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl" \
-        | jq -s 'group_by(.status) | map({success: (.[0].status == "success"), count: length})'
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" logs build-success-rate "{{GRAMMAR}}"
 
 avg-parse-time GRAMMAR:
-    #!/usr/bin/env bash
-    if [ ! -f "{{project_root}}/logs/parses.jsonl" ]; then
-        echo "0"
-        exit 0
-    fi
-    jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl" \
-        | jq -s 'if length == 0 then 0 else (map(.duration_ms) | add / length) end'
+    PYTHONPATH="{{project_root}}/src" python -m grammatic.cli --repo-root "{{project_root}}" logs avg-parse-time "{{GRAMMAR}}"
 
 slowest-parses N="10":
     #!/usr/bin/env bash

@@ -186,7 +186,7 @@ class TestLogQueries:
 
         lines = result.stdout.strip().split("\n")
         assert len(lines) == 2
-        assert all('"grammar":"test"' in line for line in lines)
+        assert all(json.loads(line)["grammar"] == "test" for line in lines)
 
 
     @pytest.mark.parametrize("grammar", ['odd"name$[]', *SPECIAL_GRAMMARS])
@@ -229,8 +229,11 @@ class TestLogQueries:
             cwd=repo_with_logs,
         )
 
-        rates = json.loads(result.stdout)
-        assert rates == [{"success": True, "count": 1}]
+        summary = json.loads(result.stdout)
+        assert summary["metrics"]["total"] == 1
+        assert summary["metrics"]["success_count"] == 1
+        assert summary["metrics"]["failure_count"] == 0
+        assert summary["status_counts"] == {"success": 1}
 
     def test_query_parses(self, repo_with_logs: Path) -> None:
         result = subprocess.run(
@@ -267,8 +270,11 @@ class TestLogQueries:
             cwd=repo_with_logs,
         )
 
-        rates = json.loads(result.stdout)
-        assert len(rates) == 2
+        summary = json.loads(result.stdout)
+        assert summary["metrics"]["total"] == 2
+        assert summary["metrics"]["success_count"] == 1
+        assert summary["metrics"]["failure_count"] == 1
+        assert summary["status_counts"] == {"success": 1, "failure": 1}
 
     def test_avg_parse_time(self, repo_with_logs: Path) -> None:
         result = subprocess.run(
@@ -279,8 +285,11 @@ class TestLogQueries:
             cwd=repo_with_logs,
         )
 
-        avg = float(result.stdout.strip())
-        assert avg == 15.0
+        summary = json.loads(result.stdout)
+        assert summary["metrics"]["total"] == 2
+        assert summary["metrics"]["success_count"] == 1
+        assert summary["metrics"]["failure_count"] == 1
+        assert summary["metrics"]["latency_ms"]["p50"] == 15.0
 
 
 class TestLogValidation:
