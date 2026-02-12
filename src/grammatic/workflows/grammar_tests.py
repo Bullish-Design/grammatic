@@ -1,37 +1,23 @@
 from __future__ import annotations
 
-from pydantic import ValidationError as PydanticValidationError
-
 from grammatic.contracts import Diagnostic, TestGrammarRequest, TestGrammarResult
-from grammatic.errors import ArtifactMissingError, ValidationError
-from grammatic.workspace import WorkshopLayout
+from grammatic.preflight import (
+    ensure_required_paths_for_test,
+    ensure_tools_for_test,
+    ensure_tree_sitter_test_language_support,
+    resolve_grammar_workspace,
+)
 
 from .common import now_ms, run_checked
 
 
 def handle_test_grammar(request: TestGrammarRequest) -> TestGrammarResult:
     started = now_ms()
-    try:
-        layout = WorkshopLayout(repo_root=request.repo_root)
-        workspace = layout.for_grammar(request.grammar)
-    except (ValueError, PydanticValidationError) as exc:
-        raise ValidationError(str(exc)) from exc
+    _, workspace = resolve_grammar_workspace(request.repo_root, request.grammar)
 
-    corpus_dir = workspace.grammar_dir / "test" / "corpus"
-    if not corpus_dir.is_dir():
-        raise ValidationError(f"No corpus tests found for {request.grammar}")
-
-    if not workspace.so_path.is_file():
-        raise ArtifactMissingError(
-            f"Built grammar not found: {workspace.so_path}. Run 'just build {request.grammar}' first"
-        )
-
-    help_result = run_checked(["tree-sitter", "test", "--help"], message="Failed to inspect tree-sitter test support")
-    if "--language" not in help_result.stdout:
-        raise ValidationError(
-            "Current tree-sitter CLI does not support 'tree-sitter test --language'. "
-            f"Upgrade tree-sitter to run corpus tests against {workspace.so_path}"
-        )
+    ensure_required_paths_for_test(workspace)
+    ensure_tools_for_test()
+    ensure_tree_sitter_test_language_support()
 
     test_result = run_checked(
         ["tree-sitter", "test", "--language", str(workspace.so_path)],

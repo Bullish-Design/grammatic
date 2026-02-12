@@ -2,12 +2,10 @@ from __future__ import annotations
 
 import json
 
-from pydantic import ValidationError as PydanticValidationError
-
 from grammatic.contracts import Diagnostic, ParseRequest, ParseResult
-from grammatic.errors import ArtifactMissingError, GrammaticError, SubprocessExecutionError, ValidationError
+from grammatic.errors import GrammaticError, SubprocessExecutionError, ValidationError
 from grammatic.event_logs import append_parse_event, parse_event
-from grammatic.workspace import WorkshopLayout
+from grammatic.preflight import ensure_required_paths_for_parse, ensure_tools_for_parse, resolve_grammar_workspace
 
 from .common import count_nodes, has_errors, lookup_grammar_version, now_ms, run_checked
 
@@ -23,24 +21,13 @@ def _failure_details(exc: Exception) -> tuple[str, list[Diagnostic], str | None]
 
 def handle_parse(request: ParseRequest) -> ParseResult:
     started = now_ms()
-    try:
-        layout = WorkshopLayout(repo_root=request.repo_root)
-        workspace = layout.for_grammar(request.grammar)
-    except (ValueError, PydanticValidationError) as exc:
-        raise ValidationError(str(exc)) from exc
+    layout, workspace = resolve_grammar_workspace(request.repo_root, request.grammar)
 
-    source = request.source.resolve()
+    source = ensure_required_paths_for_parse(workspace, request.source)
+    ensure_tools_for_parse()
     grammar_version = lookup_grammar_version(request.grammar, layout.builds_log)
 
     try:
-        if not workspace.so_path.is_file():
-            raise ArtifactMissingError(
-                f"Built grammar not found: {workspace.so_path}. Run 'just build {request.grammar}' first"
-            )
-
-        if not source.is_file():
-            raise ValidationError(f"Source file not found: {source}")
-
         run_result = run_checked(
             ["tree-sitter", "parse", str(source), "--language", str(workspace.so_path), "--json"],
             message="tree-sitter parse failed",
