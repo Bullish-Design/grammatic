@@ -14,6 +14,7 @@ from grammatic.errors import (
     ToolMissingError,
     ValidationError,
 )
+from grammatic.logs import LogRepository
 from grammatic.workflows import handle_build, handle_doctor, handle_generate, handle_parse, handle_test_grammar
 
 
@@ -55,9 +56,75 @@ def main() -> int:
     parse_cmd.add_argument("grammar")
     parse_cmd.add_argument("source", type=Path)
 
+    logs_cmd = sub.add_parser("logs")
+    logs_sub = logs_cmd.add_subparsers(dest="logs_command", required=True)
+
+    recent_builds = logs_sub.add_parser("recent-builds")
+    recent_builds.add_argument("--limit", type=int, default=10)
+    recent_builds.add_argument("--grammar")
+    recent_builds.add_argument("--all", action="store_true")
+
+    recent_parses = logs_sub.add_parser("recent-parses")
+    recent_parses.add_argument("--limit", type=int, default=10)
+    recent_parses.add_argument("--grammar")
+    recent_parses.add_argument("--failures-only", action="store_true")
+    recent_parses.add_argument("--all", action="store_true")
+
+    build_summary = logs_sub.add_parser("build-summary")
+    build_summary.add_argument("--grammar")
+
+    parse_summary = logs_sub.add_parser("parse-summary")
+    parse_summary.add_argument("--grammar")
+
+    build_success_rate = logs_sub.add_parser("build-success-rate")
+    build_success_rate.add_argument("grammar")
+
+    avg_parse_time = logs_sub.add_parser("avg-parse-time")
+    avg_parse_time.add_argument("grammar")
+
     args = parser.parse_args()
 
     try:
+        if args.command == "logs":
+            repo = LogRepository(args.repo_root)
+            if args.logs_command == "recent-builds":
+                for entry in repo.recent_builds(
+                    limit=None if args.all else args.limit,
+                    grammar=args.grammar,
+                ):
+                    print(entry.model_dump_json())
+            elif args.logs_command == "recent-parses":
+                for entry in repo.recent_parses(
+                    limit=None if args.all else args.limit,
+                    grammar=args.grammar,
+                    failures_only=args.failures_only,
+                ):
+                    print(entry.model_dump_json())
+            elif args.logs_command == "build-success-rate":
+                print(json.dumps(repo.build_success_rate_counts(grammar=args.grammar)))
+            elif args.logs_command == "avg-parse-time":
+                print(repo.parse_average_duration_ms(grammar=args.grammar))
+            elif args.logs_command == "build-summary":
+                metrics, status_counts = repo.build_metrics(grammar=args.grammar)
+                print(
+                    json.dumps(
+                        {
+                            "metrics": metrics.model_dump(mode="json"),
+                            "status_counts": status_counts,
+                        }
+                    )
+                )
+            else:
+                metrics, status_counts = repo.parse_metrics(grammar=args.grammar)
+                print(
+                    json.dumps(
+                        {
+                            "metrics": metrics.model_dump(mode="json"),
+                            "status_counts": status_counts,
+                        }
+                    )
+                )
+            return 0
         if args.command == "generate":
             result = handle_generate(GenerateRequest(grammar=args.grammar, repo_root=args.repo_root))
         elif args.command == "build":
