@@ -92,13 +92,25 @@ parse GRAMMAR SOURCE: init
     echo ""
     echo "Parse logged to parses.jsonl"
 
-test-grammar GRAMMAR:
+test-grammar GRAMMAR: (build GRAMMAR)
     #!/usr/bin/env bash
+    grammar_dir="{{project_root}}/grammars/{{GRAMMAR}}"
+    grammar_so="{{project_root}}/build/{{GRAMMAR}}/{{GRAMMAR}}.so"
     corpus_dir="{{project_root}}/grammars/{{GRAMMAR}}/test/corpus"
-    just check-dir "$corpus_dir" "Error: No corpus tests found for {{GRAMMAR}}"
-    cd "{{project_root}}/grammars/{{GRAMMAR}}" && tree-sitter test --update && cd "{{project_root}}"
 
-test GRAMMAR: (build GRAMMAR)
+    just check-dir "$grammar_dir" "Error: grammar directory not found: $grammar_dir"
+    just check-dir "$corpus_dir" "Error: No corpus tests found for {{GRAMMAR}}"
+    just check-file "$grammar_so" "Error: built grammar not found: $grammar_so. Run 'just build {{GRAMMAR}}' first"
+
+    if ! tree-sitter test --help | rg -q -- '--language'; then
+        echo "Error: current tree-sitter CLI does not support 'tree-sitter test --language'. Upgrade tree-sitter to run corpus tests against $grammar_so" >&2
+        exit 1
+    fi
+
+    cd "$grammar_dir" && tree-sitter test --language "$grammar_so"
+
+test GRAMMAR:
+    just test-grammar "{{GRAMMAR}}"
     just parse "{{GRAMMAR}}" "{{project_root}}/tests/fixtures/sample_{{GRAMMAR}}.txt"
 
 # Watch grammar for changes and rebuild
