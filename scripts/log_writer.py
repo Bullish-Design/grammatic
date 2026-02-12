@@ -110,7 +110,15 @@ def log_build(args: argparse.Namespace) -> None:
 
 def log_parse(args: argparse.Namespace) -> None:
     """Write parse event JSON to stdout."""
-    parse_data = json.loads(Path(args.parse_result).read_text())
+    project_root = resolve_project_root(args.project_root)
+    builds_log_path = (
+        resolve_from_project_root(args.builds_log, project_root)
+        if args.builds_log
+        else (project_root / "logs" / "builds.jsonl").resolve()
+    )
+
+    parse_result_path = resolve_from_project_root(args.parse_result, project_root)
+    parse_data = json.loads(parse_result_path.read_text())
     if not isinstance(parse_data, dict):
         print("Error: parse result JSON must be an object", file=sys.stderr)
         raise SystemExit(1)
