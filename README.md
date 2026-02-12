@@ -17,3 +17,7 @@ just parse python tests/fixtures/example.py
 
 - Development guide: [`AGENTS.md`](./AGENTS.md#grammatic-development-guide)
 - Architecture summary: [`AGENTS.md`](./AGENTS.md#architecture-at-a-glance)
+
+## Build Implementation
+
+Grammatic uses a single canonical build entrypoint: `scripts/build_grammar.py`. The `scripts/build_grammar.sh` file is only a thin compatibility wrapper that delegates to the Python script.
