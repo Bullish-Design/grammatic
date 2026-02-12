@@ -5,6 +5,8 @@ description = "Tree-sitter grammar development toolchain"
 requires-python = ">=3.13"
 dependencies = [
     "pydantic>=2.0",
+    "tree-sitter>=0.25.2",
+    "tree-sitter-python>=0.25.0",
 ]
 
 [dependency-groups]
