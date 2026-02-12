@@ -2,7 +2,7 @@
 name = "grammatic"
 version = "0.1.0"
 description = "Tree-sitter grammar development toolchain"
-requires-python = ">=3.12"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "pydantic>=2.0",
 ]

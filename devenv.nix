@@ -5,7 +5,7 @@
     tree-sitter
     gcc
     gnumake
-    python312
+    python313
     uv
     jq
     git
