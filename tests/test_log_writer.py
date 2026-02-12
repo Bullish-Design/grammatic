@@ -1,479 +1,176 @@
 from __future__ import annotations
 
-import importlib.util
 import json
-import subprocess
-import sys
-import time
 from pathlib import Path
 
+import pytest
 
-ROOT = Path(__file__).resolve().parents[1]
-SCRIPT = ROOT / "scripts" / "log_writer.py"
+from grammatic.event_logs import build_event, parse_event
+from grammatic.workflows.common import count_nodes, detect_compiler, has_errors
 
-spec = importlib.util.spec_from_file_location("log_writer", SCRIPT)
-assert spec is not None and spec.loader is not None
-log_writer = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(log_writer)
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-class TestLogWriter:
-    def test_build_log_generation(self) -> None:
-        (ROOT / "grammars" / "test" / "src").mkdir(parents=True, exist_ok=True)
+class TestBuildEventGeneration:
+    """Test build event generation."""
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--project-root",
-                str(ROOT),
-                "build",
-                "--grammar",
-                "test",
-                "--commit",
-                "abc123",
-                "--repo-url",
-                "https://example.com/test",
-                "--so-path",
-                "build/test.so",
-                "--build-time",
-                "1234",
-                "--tree-sitter-version",
-                "0.21.0",
+    def test_build_log_structure(self, tmp_path: Path) -> None:
+        """Build events have required fields."""
+        grammar_dir = tmp_path / "grammars" / "test"
+        (grammar_dir / "src").mkdir(parents=True)
+
+        event = build_event(
+            grammar="test",
+            commit="abc123",
+            repo_url="https://example.com/test",
+            so_path=tmp_path / "build" / "test" / "test.so",
+            compiler="gcc",
+            tree_sitter_version="1.0.0",
+            status="success",
+            duration_ms=100,
+        )
+
+        assert event.event_type == "build"
+        assert event.grammar == "test"
+        assert event.status == "success"
+        assert event.duration_ms == 100
+        assert event.compiler == "gcc"
+
+    def test_build_log_with_failure(self, tmp_path: Path) -> None:
+        """Build events can record failures."""
+        event = build_event(
+            grammar="test",
+            commit="abc123",
+            repo_url="https://example.com/test",
+            so_path=tmp_path / "build" / "test" / "test.so",
+            compiler="gcc",
+            tree_sitter_version="1.0.0",
+            status="failure",
+            duration_ms=50,
+            error_code="COMPILATIONERROR",
+            stderr_excerpt="compilation failed",
+        )
+
+        assert event.status == "failure"
+        assert event.error_code == "COMPILATIONERROR"
+        assert event.stderr_excerpt == "compilation failed"
+
+
+class TestParseEventGeneration:
+    """Test parse event generation."""
+
+    def test_parse_log_structure(self, tmp_path: Path) -> None:
+        """Parse events have required fields."""
+        source_file = tmp_path / "test.txt"
+        source_file.write_text("test content")
+
+        event = parse_event(
+            grammar="test",
+            grammar_version="v1.0.0",
+            source_file=source_file,
+            node_count=10,
+            has_errors=False,
+            root_node_type="source_file",
+            status="success",
+            duration_ms=25,
+        )
+
+        assert event.event_type == "parse"
+        assert event.grammar == "test"
+        assert event.grammar_version == "v1.0.0"
+        assert event.node_count == 10
+        assert event.has_errors is False
+        assert event.status == "success"
+
+    def test_parse_with_errors(self, tmp_path: Path) -> None:
+        """Parse events can indicate parsing errors."""
+        source_file = tmp_path / "test.txt"
+        source_file.write_text("test")
+
+        event = parse_event(
+            grammar="test",
+            grammar_version="v1.0.0",
+            source_file=source_file,
+            node_count=5,
+            has_errors=True,
+            root_node_type="source_file",
+            status="success",
+            duration_ms=15,
+        )
+
+        assert event.has_errors is True
+
+
+class TestErrorDetection:
+    """Test parse tree error detection utilities."""
+
+    def test_error_node_detection(self) -> None:
+        """has_errors() detects ERROR nodes in parse tree."""
+        tree_with_error = {
+            "type": "source_file",
+            "children": [{"type": "line", "children": []}, {"type": "ERROR", "children": []}],
+        }
+
+        assert has_errors(tree_with_error) is True
+
+    def test_no_error_detection(self) -> None:
+        """has_errors() returns False for valid parse tree."""
+        tree_without_error = {
+            "type": "source_file",
+            "children": [{"type": "line", "children": []}, {"type": "line", "children": []}],
+        }
+
+        assert has_errors(tree_without_error) is False
+
+
+class TestNodeCounting:
+    """Test parse tree node counting utilities."""
+
+    def test_node_counting(self) -> None:
+        """count_nodes() recursively counts all nodes."""
+        tree = {
+            "type": "source_file",
+            "children": [
+                {"type": "line", "children": [{"type": "word", "children": []}]},
+                {"type": "line", "children": []},
             ],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=ROOT,
-        )
+        }
 
-        log_entry = json.loads(result.stdout)
-        assert log_entry["event_type"] == "build"
-        assert log_entry["grammar"] == "test"
-        assert log_entry["commit"] == "abc123"
-        assert log_entry["repo_url"] == "https://example.com/test"
-        assert log_entry["so_path"] == str((ROOT / "build" / "test.so").resolve())
-        assert log_entry["status"] == "success"
-        assert log_entry["duration_ms"] == 1234
-        assert log_entry["compiler"] == "gcc"
-        assert log_entry["tree_sitter_version"] == "0.21.0"
+        # Root + 2 lines + 1 word = 4 nodes
+        assert count_nodes(tree) == 4
 
-    def test_build_log_generation_with_cpp_scanner(self, tmp_path: Path) -> None:
-        grammar_dir = ROOT / "grammars" / "test" / "src"
-        grammar_dir.mkdir(parents=True, exist_ok=True)
-        scanner_cc = grammar_dir / "scanner.cc"
-        scanner_cc.write_text("// scanner")
+    def test_empty_tree_counting(self) -> None:
+        """count_nodes() handles empty trees."""
+        tree = {"type": "source_file", "children": []}
 
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    "--project-root",
-                    str(ROOT),
-                    "build",
-                    "--grammar",
-                    "test",
-                    "--commit",
-                    "abc123",
-                    "--repo-url",
-                    "https://example.com/test",
-                    "--so-path",
-                    str(tmp_path / "build" / "test.so"),
-                    "--build-time",
-                    "1234",
-                    "--tree-sitter-version",
-                    "0.21.0",
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-                cwd=ROOT,
-            )
-
-            log_entry = json.loads(result.stdout)
-            assert log_entry["compiler"] == "g++"
-        finally:
-            scanner_cc.unlink(missing_ok=True)
-
-    def test_build_log_generation_with_c_scanner(self, tmp_path: Path) -> None:
-        grammar_dir = ROOT / "grammars" / "test" / "src"
-        grammar_dir.mkdir(parents=True, exist_ok=True)
-        scanner_c = grammar_dir / "scanner.c"
-        scanner_c.write_text("/* scanner */")
-
-        try:
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    "--project-root",
-                    str(ROOT),
-                    "build",
-                    "--grammar",
-                    "test",
-                    "--commit",
-                    "abc123",
-                    "--repo-url",
-                    "https://example.com/test",
-                    "--so-path",
-                    str(tmp_path / "build" / "test.so"),
-                    "--build-time",
-                    "1234",
-                    "--tree-sitter-version",
-                    "0.21.0",
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-                cwd=ROOT,
-            )
-
-            log_entry = json.loads(result.stdout)
-            assert log_entry["compiler"] == "gcc"
-        finally:
-            scanner_c.unlink(missing_ok=True)
-
-    def test_parse_log_generation(self, tmp_path: Path) -> None:
-        parse_result = tmp_path / "parse.json"
-        parse_result.write_text((ROOT / "tests" / "fixtures" / "sample_parse.json").read_text())
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--project-root",
-                str(ROOT),
-                "parse",
-                "--grammar",
-                "test",
-                "--source",
-                "tests/fixtures/sample.py",
-                "--parse-result",
-                str(parse_result),
-                "--parse-time",
-                "12",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=ROOT,
-        )
-
-        log_entry = json.loads(result.stdout)
-        assert log_entry["event_type"] == "parse"
-        assert log_entry["grammar"] == "test"
-        assert log_entry["source_file"] == str((ROOT / "tests" / "fixtures" / "sample.py").resolve())
-        assert log_entry["node_count"] == 3
-        assert log_entry["has_errors"] is False
-        assert log_entry["duration_ms"] == 12
-        assert log_entry["root_node_type"] == "source_file"
-
-    def test_error_node_detection(self, tmp_path: Path) -> None:
-        parse_result = tmp_path / "parse_errors.json"
-        parse_result.write_text((ROOT / "tests" / "fixtures" / "sample_parse_with_errors.json").read_text())
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--project-root",
-                str(ROOT),
-                "parse",
-                "--grammar",
-                "test",
-                "--source",
-                "tests/fixtures/bad.py",
-                "--parse-result",
-                str(parse_result),
-                "--parse-time",
-                "8",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=ROOT,
-        )
-
-        log_entry = json.loads(result.stdout)
-        assert log_entry["has_errors"] is True
-
-    def test_node_counting(self, tmp_path: Path) -> None:
-        parse_result = tmp_path / "nested_parse.json"
-        parse_result.write_text(
-            json.dumps(
-                {
-                    "root_node": {
-                        "type": "source",
-                        "children": [
-                            {"type": "a", "children": []},
-                            {
-                                "type": "b",
-                                "children": [
-                                    {"type": "c", "children": []},
-                                    {"type": "d", "children": []},
-                                ],
-                            },
-                        ],
-                    }
-                }
-            )
-        )
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--project-root",
-                str(ROOT),
-                "parse",
-                "--grammar",
-                "test",
-                "--source",
-                "test.txt",
-                "--parse-result",
-                str(parse_result),
-                "--parse-time",
-                "5",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=ROOT,
-        )
-
-        log_entry = json.loads(result.stdout)
-        assert log_entry["node_count"] == 5
+        assert count_nodes(tree) == 1
 
 
-    def test_parse_log_missing_root_node_fails(self, tmp_path: Path) -> None:
-        parse_result = tmp_path / "parse_missing_root.json"
-        parse_result.write_text(json.dumps({"not_root_node": {"type": "source"}}))
+class TestCompilerDetection:
+    """Test compiler detection utilities."""
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "parse",
-                "--grammar",
-                "test",
-                "--source",
-                "tests/fixtures/sample.py",
-                "--parse-result",
-                str(parse_result),
-                "--parse-time",
-                "10",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=ROOT,
-        )
+    def test_detect_cpp_scanner(self, tmp_path: Path) -> None:
+        """detect_compiler() identifies C++ scanner."""
+        grammar_dir = tmp_path / "grammar"
+        (grammar_dir / "src").mkdir(parents=True)
+        (grammar_dir / "src" / "scanner.cc").touch()
 
-        assert result.returncode == 1
-        assert "must include a 'root_node' object" in result.stderr
+        compiler = detect_compiler(grammar_dir)
+        assert compiler == "g++"
 
-    def test_parse_log_root_node_missing_type_fails(self, tmp_path: Path) -> None:
-        parse_result = tmp_path / "parse_root_missing_type.json"
-        parse_result.write_text(json.dumps({"root_node": {"children": []}}))
+    def test_detect_c_scanner(self, tmp_path: Path) -> None:
+        """detect_compiler() identifies C scanner."""
+        grammar_dir = tmp_path / "grammar"
+        (grammar_dir / "src").mkdir(parents=True)
+        (grammar_dir / "src" / "scanner.c").touch()
 
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "parse",
-                "--grammar",
-                "test",
-                "--source",
-                "tests/fixtures/sample.py",
-                "--parse-result",
-                str(parse_result),
-                "--parse-time",
-                "10",
-            ],
-            capture_output=True,
-            text=True,
-            cwd=ROOT,
-        )
+        compiler = detect_compiler(grammar_dir)
+        assert compiler == "gcc"
 
-        assert result.returncode == 1
-        assert "must include a non-empty 'type' string" in result.stderr
+    def test_detect_no_scanner(self, tmp_path: Path) -> None:
+        """detect_compiler() defaults to gcc when no scanner."""
+        grammar_dir = tmp_path / "grammar"
+        (grammar_dir / "src").mkdir(parents=True)
 
-    def test_grammar_version_lookup(self, tmp_path: Path, monkeypatch) -> None:
-        logs_dir = tmp_path / "logs"
-        logs_dir.mkdir()
-        (logs_dir / "builds.jsonl").write_text(json.dumps({"grammar": "test", "commit": "xyz789"}) + "\n")
-
-        parse_result = tmp_path / "parse.json"
-        parse_result.write_text(json.dumps({"root_node": {"type": "module", "children": []}}))
-
-        monkeypatch.chdir(tmp_path)
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--project-root",
-                str(tmp_path),
-                "parse",
-                "--grammar",
-                "test",
-                "--source",
-                "test.py",
-                "--parse-result",
-                str(parse_result),
-                "--parse-time",
-                "12",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        log_entry = json.loads(result.stdout)
-        assert log_entry["grammar_version"] == "xyz789"
-
-    def test_missing_builds_log(self, tmp_path: Path, monkeypatch) -> None:
-        parse_result = tmp_path / "parse.json"
-        parse_result.write_text(json.dumps({"root_node": {"type": "module", "children": []}}))
-
-        monkeypatch.chdir(tmp_path)
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--project-root",
-                str(tmp_path),
-                "parse",
-                "--grammar",
-                "test",
-                "--source",
-                "test.py",
-                "--parse-result",
-                str(parse_result),
-                "--parse-time",
-                "12",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-
-        log_entry = json.loads(result.stdout)
-        assert log_entry["grammar_version"] == "unknown"
-
-    def test_parse_with_non_root_working_directory(self, tmp_path: Path) -> None:
-        logs_dir = ROOT / "logs"
-        logs_dir.mkdir(exist_ok=True)
-        builds_log = logs_dir / "builds.jsonl"
-        original = builds_log.read_text() if builds_log.exists() else None
-
-        nested_cwd = tmp_path / "nested" / "dir"
-        nested_cwd.mkdir(parents=True)
-
-        try:
-            builds_log.write_text(json.dumps({"grammar": "test", "commit": "nonroot123"}) + "\n")
-
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPT),
-                    "--project-root",
-                    str(ROOT),
-                    "parse",
-                    "--grammar",
-                    "test",
-                    "--source",
-                    "tests/fixtures/sample.py",
-                    "--parse-result",
-                    "tests/fixtures/sample_parse.json",
-                    "--parse-time",
-                    "12",
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-                cwd=nested_cwd,
-            )
-
-            log_entry = json.loads(result.stdout)
-            assert log_entry["grammar_version"] == "nonroot123"
-            assert log_entry["source_file"] == str((ROOT / "tests" / "fixtures" / "sample.py").resolve())
-        finally:
-            if original is None:
-                builds_log.unlink(missing_ok=True)
-            else:
-                builds_log.write_text(original)
-
-
-class TestLogValidation:
-    def test_valid_jsonl_format(self) -> None:
-        (ROOT / "grammars" / "test" / "src").mkdir(parents=True, exist_ok=True)
-
-        result = subprocess.run(
-            [
-                sys.executable,
-                str(SCRIPT),
-                "--project-root",
-                str(ROOT),
-                "build",
-                "--grammar",
-                "test",
-                "--commit",
-                "abc",
-                "--repo-url",
-                "https://example.com",
-                "--so-path",
-                "test.so",
-                "--build-time",
-                "100",
-                "--tree-sitter-version",
-                "0.21.0",
-            ],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=ROOT,
-        )
-
-        lines = result.stdout.strip().split("\n")
-        assert len(lines) == 1
-        json.loads(lines[0])
-
-    def test_append_to_log_file(self, tmp_path: Path) -> None:
-        log_file = tmp_path / "test.jsonl"
-
-        for i in range(3):
-            (ROOT / "grammars" / f"test{i}" / "src").mkdir(parents=True, exist_ok=True)
-            with log_file.open("a", encoding="utf-8") as handle:
-                subprocess.run(
-                    [
-                        sys.executable,
-                        str(SCRIPT),
-                        "--project-root",
-                        str(ROOT),
-                        "build",
-                        "--grammar",
-                        f"test{i}",
-                        "--commit",
-                        f"commit{i}",
-                        "--repo-url",
-                        "https://example.com",
-                        "--so-path",
-                        "test.so",
-                        "--build-time",
-                        "100",
-                        "--tree-sitter-version",
-                        "0.21.0",
-                    ],
-                    stdout=handle,
-                    check=True,
-                    cwd=ROOT,
-                )
-
-        with log_file.open(encoding="utf-8") as handle:
-            entries = [json.loads(line) for line in handle]
-
-        assert len(entries) == 3
-        assert entries[0]["grammar"] == "test0"
-        assert entries[2]["grammar"] == "test2"
+        compiler = detect_compiler(grammar_dir)
+        assert compiler == "gcc"

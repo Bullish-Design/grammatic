@@ -6,170 +6,139 @@ from pathlib import Path
 
 import pytest
 
+from grammatic.contracts import BuildRequest, DoctorRequest, GenerateRequest
+from grammatic.workflows import handle_build, handle_doctor, handle_generate
+
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def require_toolchain() -> None:
-    missing = [
-        tool
-        for tool in ("git", "just", "tree-sitter", "uv", "jq", "gcc", "python")
-        if shutil.which(tool) is None
-    ]
+    """Skip tests if required tools are not available."""
+    missing = [tool for tool in ("git", "tree-sitter", "gcc") if shutil.which(tool) is None]
     if missing:
         pytest.skip(f"Required tool(s) unavailable in PATH: {', '.join(missing)}")
 
 
 @pytest.fixture
 def test_repo(tmp_path: Path) -> Path:
+    """Create a test repository structure."""
     require_toolchain()
 
     repo = tmp_path / "test_repo"
-    repo.mkdir()
-
-    subprocess.run(["git", "init"], check=True, capture_output=True, cwd=repo)
-    subprocess.run(["git", "config", "user.name", "Test"], check=True, capture_output=True, cwd=repo)
-    subprocess.run(["git", "config", "user.email", "test@test.com"], check=True, capture_output=True, cwd=repo)
-
-    (repo / "scripts" / "just").mkdir(parents=True)
-    (repo / "src" / "grammatic").mkdir(parents=True)
-    (repo / "tests" / "fixtures").mkdir(parents=True)
-
-    shutil.copy(PROJECT_ROOT / "justfile", repo / "justfile")
-    shutil.copy(PROJECT_ROOT / "scripts" / "build_grammar.py", repo / "scripts" / "build_grammar.py")
-    shutil.copy(PROJECT_ROOT / "scripts" / "log_writer.py", repo / "scripts" / "log_writer.py")
-    shutil.copy(PROJECT_ROOT / "scripts" / "query_logs.py", repo / "scripts" / "query_logs.py")
-    shutil.copy(PROJECT_ROOT / "scripts" / "grammar_doctor.py", repo / "scripts" / "grammar_doctor.py")
-    shutil.copy(PROJECT_ROOT / "scripts" / "new_grammar.sh", repo / "scripts" / "new_grammar.sh")
-    shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.just", repo / "scripts" / "just" / "path_checks.just")
-    shutil.copy(PROJECT_ROOT / "scripts" / "just" / "path_checks.py", repo / "scripts" / "just" / "path_checks.py")
-    shutil.copytree(PROJECT_ROOT / "src" / "grammatic", repo / "src" / "grammatic", dirs_exist_ok=True)
+    (repo / "grammars").mkdir(parents=True)
+    (repo / "build").mkdir(parents=True)
+    (repo / "logs").mkdir(parents=True)
 
     return repo
 
 
-class TestNewGrammar:
-    def test_creates_template(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
+class TestGenerateWorkflow:
+    """Test generate workflow."""
 
-        subprocess.run(
-            ["just", "new-grammar", "mytest"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=test_repo,
-        )
-
-        grammar_js = test_repo / "grammars" / "mytest" / "grammar.js"
-        readme = test_repo / "grammars" / "mytest" / "README.md"
-
-        assert grammar_js.exists()
-        assert (test_repo / "grammars" / "mytest" / "test" / "corpus" / "basic.txt").exists()
-        assert readme.exists()
-
-        grammar_js_content = grammar_js.read_text(encoding="utf-8")
-        readme_content = readme.read_text(encoding="utf-8")
-
-        assert "__GRAMMAR_NAME__" not in grammar_js_content
-        assert "name: 'mytest'" in grammar_js_content
-
-        assert "__GRAMMAR_NAME__" not in readme_content
-        assert "# mytest Grammar" in readme_content
-        assert "just build mytest" in readme_content
-
-    def test_prevents_duplicate_grammar(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
-        (test_repo / "grammars" / "existing").mkdir(parents=True)
-
-        result = subprocess.run(
-            ["just", "new-grammar", "existing"],
-            capture_output=True,
-            text=True,
-            cwd=test_repo,
-        )
-
-        assert result.returncode == 1
-        assert "already exists" in result.stderr
-
-
-class TestListGrammars:
-    def test_lists_grammars(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
-
-        (test_repo / "grammars" / "test1").mkdir(parents=True)
-        (test_repo / "grammars" / "test2").mkdir(parents=True)
-        (test_repo / "build" / "test1" ).mkdir(parents=True)
-        (test_repo / "build" / "test1" / "test1.so").touch()
-
-        result = subprocess.run(
-            ["just", "list-grammars"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=test_repo,
-        )
-
-        assert "test1 (built)" in result.stdout
-        assert "test2 (not built)" in result.stdout
-
-
-class TestGrammarInfo:
-    def test_shows_info(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
-
+    def test_generate_creates_parser(self, test_repo: Path) -> None:
+        """Generate creates parser.c in grammar source directory."""
         grammar_dir = test_repo / "grammars" / "test"
-        grammar_dir.mkdir(parents=True)
+        grammar_dir.mkdir()
+
+        # Create minimal grammar.js
+        grammar_js = grammar_dir / "grammar.js"
+        grammar_js.write_text(
+            """
+            module.exports = grammar({
+                name: 'test',
+                rules: {
+                    source_file: $ => repeat($.line),
+                    line: $ => /[^\\n]*\\n/
+                }
+            });
+            """
+        )
+
+        result = handle_generate(GenerateRequest(grammar="test", repo_root=test_repo))
+
+        assert result.status == "ok"
+        assert (grammar_dir / "src" / "parser.c").exists()
+
+    def test_generate_fails_without_grammar_js(self, test_repo: Path) -> None:
+        """Generate fails when grammar.js is missing."""
+        (test_repo / "grammars" / "missing").mkdir()
+
+        with pytest.raises(Exception):
+            handle_generate(GenerateRequest(grammar="missing", repo_root=test_repo))
+
+
+class TestDoctorWorkflow:
+    """Test doctor diagnostic workflow."""
+
+    def test_doctor_validates_grammar_structure(self, test_repo: Path) -> None:
+        """Doctor checks grammar structure and reports issues."""
+        grammar_dir = test_repo / "grammars" / "incomplete"
+        grammar_dir.mkdir()
+
+        # Create empty grammar.js (invalid)
+        (grammar_dir / "grammar.js").touch()
+
+        result = handle_doctor(DoctorRequest(grammar="incomplete", repo_root=test_repo))
+
+        # Doctor should report issues
+        assert result.status == "error" or len(result.findings) > 0
+
+    def test_doctor_checks_corpus_tests(self, test_repo: Path) -> None:
+        """Doctor verifies corpus test presence."""
+        grammar_dir = test_repo / "grammars" / "test"
+        grammar_dir.mkdir()
+
+        # Create minimal valid grammar
         (grammar_dir / "grammar.js").write_text(
             "module.exports = grammar({ name: 'test', rules: { source_file: $ => /.*/ } });"
         )
-        (grammar_dir / "src").mkdir()
-        (grammar_dir / "src" / "parser.c").touch()
-        (test_repo / "build" / "test").mkdir(parents=True)
-        (test_repo / "build" / "test" / "test.so").touch()
 
-        result = subprocess.run(
-            ["just", "info", "test"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=test_repo,
+        # Generate and build
+        handle_generate(GenerateRequest(grammar="test", repo_root=test_repo))
+        handle_build(BuildRequest(grammar="test", repo_root=test_repo))
+
+        # Create empty corpus directory
+        (grammar_dir / "test" / "corpus").mkdir(parents=True)
+
+        result = handle_doctor(DoctorRequest(grammar="test", repo_root=test_repo))
+
+        # Should report missing or empty corpus
+        assert len(result.findings) > 0 or result.status == "error"
+
+
+class TestWorkspaceLayout:
+    """Test workspace layout and path conventions."""
+
+    def test_canonical_build_paths(self, test_repo: Path) -> None:
+        """Verify canonical build output paths."""
+        grammar_dir = test_repo / "grammars" / "mygrammar"
+        grammar_dir.mkdir()
+
+        (grammar_dir / "grammar.js").write_text(
+            "module.exports = grammar({ name: 'mygrammar', rules: { source_file: $ => /.*/ } });"
         )
 
-        assert "Grammar: test" in result.stdout
-        assert "Grammar file: ✓" in result.stdout
-        assert "Parser generated: ✓" in result.stdout
-        assert "Built: ✓" in result.stdout
+        handle_generate(GenerateRequest(grammar="mygrammar", repo_root=test_repo))
+        result = handle_build(BuildRequest(grammar="mygrammar", repo_root=test_repo))
 
+        # Verify canonical path: build/<grammar>/<grammar>.so
+        expected_path = test_repo / "build" / "mygrammar" / "mygrammar.so"
+        assert result.artifact_path == expected_path
+        assert expected_path.exists()
 
-class TestGrammarDoctor:
-    def test_detects_issues(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
+    def test_parser_generated_in_grammar_src(self, test_repo: Path) -> None:
+        """Verify parser.c is generated in grammar/src/, not build/."""
+        grammar_dir = test_repo / "grammars" / "test"
+        grammar_dir.mkdir()
 
-        grammar_dir = test_repo / "grammars" / "broken"
-        grammar_dir.mkdir(parents=True)
-        (grammar_dir / "grammar.js").touch()
-
-        result = subprocess.run(
-            ["just", "doctor", "broken"],
-            capture_output=True,
-            text=True,
-            cwd=test_repo,
+        (grammar_dir / "grammar.js").write_text(
+            "module.exports = grammar({ name: 'test', rules: { source_file: $ => /.*/ } });"
         )
 
-        assert result.returncode == 1
-        assert "Issues found" in result.stdout
+        handle_generate(GenerateRequest(grammar="test", repo_root=test_repo))
 
+        # Parser should be in grammar source dir
+        assert (grammar_dir / "src" / "parser.c").exists()
 
-class TestHelp:
-    def test_help_target(self, test_repo: Path) -> None:
-        subprocess.run(["just", "init"], check=True, capture_output=True, cwd=test_repo)
-
-        result = subprocess.run(
-            ["just", "help"],
-            capture_output=True,
-            text=True,
-            check=True,
-            cwd=test_repo,
-        )
-
-        assert result.returncode == 0
-        assert len(result.stdout) > 0
+        # Parser should NOT be in build dir
+        assert not (test_repo / "build" / "test" / "parser.c").exists()

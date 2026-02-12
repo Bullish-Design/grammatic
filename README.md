@@ -2,15 +2,15 @@
 
 Grammatic is a **tree-sitter grammar workshop** for humans and agents.
 
-It provides a shell-first workflow for creating, modifying, validating, and testing grammars using existing tools (`tree-sitter`, `gcc/g++`, `jq`, `git`) coordinated through `just`.
+It provides a Python-first workflow for creating, modifying, validating, and testing grammars using existing tools (`tree-sitter`, `gcc/g++`, `git`).
 
 ## Why Grammatic
 
 Grammatic is intentionally lightweight:
 
-- `just` as the control plane
+- Python workflows with typed contracts (Pydantic models)
+- `just` as a convenient command surface (thin wrappers around Python)
 - tree-sitter CLI for generation, testing, and parse capabilities
-- small Python scripts for typed logging and validation
 - append-only JSONL logs for reproducible workshop history
 
 Primary goal: **fast grammar iteration with strong testing feedback**.
@@ -53,15 +53,15 @@ All key commands are grammar-name based:
 
 ## Workflow Architecture
 
-Workflow orchestration lives in Python command handlers and is the source of truth for command behavior:
+All workflow orchestration lives in **Python modules** (`src/grammatic/workflows/`):
 
-- `generate`
-- `build`
-- `test-grammar`
-- `doctor`
-- `parse`
+- `handle_generate()` - Generate parser from grammar.js
+- `handle_build()` - Compile grammar to .so library
+- `handle_test_grammar()` - Run corpus tests
+- `handle_doctor()` - Diagnostic checks
+- `handle_parse()` - Parse source files
 
-`just` recipes are thin delegators. They should pass grammar-name-first inputs to Python entrypoints and avoid duplicating orchestration logic.
+`just` recipes are thin wrappers that call the Python CLI (`src/grammatic/cli/__main__.py`), which delegates to these workflow handlers. All logic, validation, and logging happens in Python.
 
 ## Developer UX Principles
 
@@ -186,10 +186,32 @@ Many integration-style tests are intentionally skipped when `just` or `tree-sitt
 
 The `grammatic.workspace` Pydantic models can be used in scripts to validate repository and grammar paths early, so failures become actionable before shell commands run.
 
+## Python API Usage
+
+You can also use the Python API directly without `just`:
+
+```python
+from pathlib import Path
+from grammatic.contracts import BuildRequest, ParseRequest
+from grammatic.workflows import handle_build, handle_parse
+
+# Build a grammar
+result = handle_build(BuildRequest(
+    grammar="python",
+    repo_root=Path("/path/to/grammatic")
+))
+
+# Parse a file
+result = handle_parse(ParseRequest(
+    grammar="python",
+    repo_root=Path("/path/to/grammatic"),
+    source=Path("test.py")
+))
+```
+
 ## Additional Documentation
 
 - [CONCEPT.md](./CONCEPT.md) — distilled project concept and scope
 - [AGENTS.md](./AGENTS.md) — agent operating guidance
-- [docs/migration/python-orchestration.md](./docs/migration/python-orchestration.md) — migration guide for moving recipe orchestration from `just` into Python modules
 - [skills/grammar-workshop/SKILL.md](./skills/grammar-workshop/SKILL.md) — reusable agent workflow skill
 - [skills/query-workshop/SKILL.md](./skills/query-workshop/SKILL.md) — reusable workflow for tree-sitter query (`.scm`) authoring and evaluation
