@@ -60,6 +60,52 @@ This layout is canonical and should be used consistently across scripts, checks,
 
 ---
 
+
+## Workflow Architecture
+
+Python command handlers are the source of truth for workflow behavior:
+
+- `generate`
+- `build`
+- `test-grammar`
+- `doctor`
+- `parse`
+
+`just` recipes are delegation-only wrappers. They should forward grammar-name arguments to Python entrypoints and should not duplicate validation, error mapping, or orchestration logic.
+
+### Uniform Exceptions and Exit Codes
+
+Handlers should share a uniform exception taxonomy with stable exit code mapping.
+
+- identical failure category => identical process exit code
+- command-specific context is fine, but code mapping must remain stable
+- delegating `just` recipes should preserve the Python process exit code
+
+### Consistent Preflight Contracts
+
+Each handler should run consistent prerequisite checks before invoking external tools, based on command needs:
+
+- grammar exists: `grammars/<grammar>/`
+- generated parser exists when required by the workflow stage
+- corpus tests exist for test/diagnostic flows
+- build artifact exists when required: `build/<grammar>/<grammar>.so`
+
+### Grammar-Name-First Examples
+
+```bash
+just generate python
+just build python
+just test-grammar python
+just doctor python
+just parse python tests/fixtures/sample_python.py
+```
+
+Canonical shared-library output remains:
+
+```text
+build/python/python.so
+```
+
 ## Testing-First Philosophy
 
 Testing is central, not optional:

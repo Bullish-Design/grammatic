@@ -51,6 +51,58 @@ All key commands are grammar-name based:
 - Build outputs: `build/<grammar>/<grammar>.so`
 - Logs: `logs/builds.jsonl`, `logs/parses.jsonl`
 
+## Workflow Architecture
+
+Workflow orchestration lives in Python command handlers and is the source of truth for command behavior:
+
+- `generate`
+- `build`
+- `test-grammar`
+- `doctor`
+- `parse`
+
+`just` recipes are thin delegators. They should pass grammar-name-first inputs to Python entrypoints and avoid duplicating orchestration logic.
+
+### Command and Exit Semantics
+
+Python handlers should implement a uniform exception taxonomy that maps to stable exit codes across commands.
+
+- Same error class => same exit code, regardless of command
+- Actionable diagnostics should be emitted consistently
+- Shell wrappers should preserve Python exit codes
+
+### Shared Preflight Checks
+
+Before tool invocation, handlers should run consistent preflight checks where applicable:
+
+- grammar exists: `grammars/<grammar>/`
+- generated parser exists (for build/test/doctor/parse flows)
+- corpus exists (for test/doctor flows)
+- canonical build artifact exists when required: `build/<grammar>/<grammar>.so`
+
+### Concrete Grammar-Name Examples
+
+Generate and build a grammar by name:
+
+```bash
+just generate python
+just build python
+```
+
+Canonical build output path:
+
+```text
+build/python/python.so
+```
+
+Validate and diagnose the same grammar using the same name-based interface:
+
+```bash
+just test-grammar python
+just doctor python
+just parse python tests/fixtures/sample_python.py
+```
+
 ## Testing-First Orientation
 
 Testing is the center of the project:
