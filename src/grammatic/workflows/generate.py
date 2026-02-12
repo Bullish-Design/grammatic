@@ -1,21 +1,20 @@
 from __future__ import annotations
 
-from pydantic import ValidationError as PydanticValidationError
-
 from grammatic.contracts import Diagnostic, GenerateRequest, GenerateResult
-from grammatic.errors import ValidationError
-from grammatic.workspace import WorkshopLayout
+from grammatic.preflight import (
+    ensure_required_paths_for_generate,
+    ensure_tools_for_generate,
+    resolve_grammar_workspace,
+)
 
 from .common import now_ms, run_checked
 
 
 def handle_generate(request: GenerateRequest) -> GenerateResult:
     started = now_ms()
-    try:
-        layout = WorkshopLayout(repo_root=request.repo_root)
-        workspace = layout.for_grammar(request.grammar)
-    except (ValueError, PydanticValidationError) as exc:
-        raise ValidationError(str(exc)) from exc
+    _, workspace = resolve_grammar_workspace(request.repo_root, request.grammar)
+    ensure_required_paths_for_generate(workspace)
+    ensure_tools_for_generate()
 
     result = run_checked(
         ["tree-sitter", "generate"],

@@ -1,7 +1,5 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-import "scripts/just/path_checks.just"
-
 project_root := justfile_directory()
 
 _default:
@@ -17,7 +15,11 @@ init:
     echo "Add grammars with: just add-grammar NAME URL"
 
 add-grammar NAME URL:
-    just check-missing "{{project_root}}/grammars/{{NAME}}" "Error: grammars/{{NAME}} already exists"
+    #!/usr/bin/env bash
+    if [ -e "{{project_root}}/grammars/{{NAME}}" ]; then
+        echo "Error: grammars/{{NAME}} already exists" >&2
+        exit 1
+    fi
     git -C "{{project_root}}" submodule add "{{URL}}" "grammars/{{NAME}}"
 
 update-grammars:
@@ -213,7 +215,10 @@ grammar-versions GRAMMAR:
 
 export-logs OUTPUT:
     #!/usr/bin/env bash
-    just check-dir "{{OUTPUT}}" "Error: output directory not found: {{OUTPUT}}"
+    if [ ! -d "{{OUTPUT}}" ]; then
+        echo "Error: output directory not found: {{OUTPUT}}" >&2
+        exit 1
+    fi
 
     shopt -s nullglob
     log_files=("{{project_root}}"/logs/*.jsonl)

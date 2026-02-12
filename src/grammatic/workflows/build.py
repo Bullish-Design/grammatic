@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import platform
 
-from pydantic import ValidationError as PydanticValidationError
-
 from grammatic.contracts import BuildRequest, BuildResult, Diagnostic
 from grammatic.errors import ArtifactMissingError, GrammaticError, SubprocessExecutionError, ValidationError
 from grammatic.event_logs import append_build_event, build_event
-from grammatic.workspace import WorkshopLayout
+from grammatic.preflight import (
+    ensure_required_paths_for_build,
+    ensure_tools_for_build,
+    resolve_grammar_workspace,
+)
 
 from .common import detect_compiler, now_ms, run, run_checked, tree_sitter_version
 
@@ -41,11 +43,7 @@ def _failure_diagnostic(exc: Exception) -> tuple[str, list[Diagnostic], str | No
 
 def handle_build(request: BuildRequest) -> BuildResult:
     started = now_ms()
-    try:
-        layout = WorkshopLayout(repo_root=request.repo_root)
-        workspace = layout.for_grammar(request.grammar)
-    except (ValueError, PydanticValidationError) as exc:
-        raise ValidationError(str(exc)) from exc
+    layout, workspace = resolve_grammar_workspace(request.repo_root, request.grammar)
 
     parser_c = workspace.src_dir / "parser.c"
     scanner_cc = workspace.src_dir / "scanner.cc"
@@ -53,13 +51,11 @@ def handle_build(request: BuildRequest) -> BuildResult:
     compiler = "g++" if scanner_cc.is_file() else "gcc"
     scanner = scanner_cc if scanner_cc.is_file() else scanner_c if scanner_c.is_file() else None
 
+    ensure_tools_for_build(workspace)
     commit, repo_url = _resolve_git_metadata(workspace)
 
     try:
-        if not parser_c.is_file():
-            raise ArtifactMissingError(
-                f"Generated parser not found: {parser_c}. Run 'just generate {request.grammar}' first"
-            )
+        ensure_required_paths_for_build(workspace)
 
         workspace.build_dir.mkdir(parents=True, exist_ok=True)
 
