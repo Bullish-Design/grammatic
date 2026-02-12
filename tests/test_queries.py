@@ -57,8 +57,8 @@ def repo_with_logs(test_repo: Path) -> Path:
                     {
                         "event_type": "build",
                         "grammar": "test",
-                        "build_success": True,
-                        "build_time_ms": 100,
+                        "status": "success",
+                        "duration_ms": 100,
                         "timestamp": "2026-01-01T10:00:00",
                     }
                 ),
@@ -66,8 +66,8 @@ def repo_with_logs(test_repo: Path) -> Path:
                     {
                         "event_type": "build",
                         "grammar": "test",
-                        "build_success": False,
-                        "build_time_ms": 150,
+                        "status": "failure",
+                        "duration_ms": 150,
                         "timestamp": "2026-01-01T11:00:00",
                     }
                 ),
@@ -75,8 +75,8 @@ def repo_with_logs(test_repo: Path) -> Path:
                     {
                         "event_type": "build",
                         "grammar": "other",
-                        "build_success": True,
-                        "build_time_ms": 200,
+                        "status": "success",
+                        "duration_ms": 200,
                         "timestamp": "2026-01-01T12:00:00",
                     }
                 ),
@@ -84,8 +84,8 @@ def repo_with_logs(test_repo: Path) -> Path:
                     {
                         "event_type": "build",
                         "grammar": 'odd"name$[]',
-                        "build_success": True,
-                        "build_time_ms": 90,
+                        "status": "success",
+                        "duration_ms": 90,
                         "timestamp": "2026-01-01T12:30:00",
                     }
                 ),
@@ -94,8 +94,8 @@ def repo_with_logs(test_repo: Path) -> Path:
                         {
                             "event_type": "build",
                             "grammar": grammar,
-                            "build_success": True,
-                            "build_time_ms": 95,
+                            "status": "success",
+                            "duration_ms": 95,
                             "timestamp": "2026-01-01T12:45:00",
                         }
                     )
@@ -117,7 +117,7 @@ def repo_with_logs(test_repo: Path) -> Path:
                         "grammar": "test",
                         "grammar_version": "abc123",
                         "has_errors": False,
-                        "parse_time_ms": 10,
+                        "duration_ms": 10,
                         "timestamp": "2026-01-01T13:00:00",
                     }
                 ),
@@ -127,7 +127,7 @@ def repo_with_logs(test_repo: Path) -> Path:
                         "grammar": "test",
                         "grammar_version": "def456",
                         "has_errors": True,
-                        "parse_time_ms": 20,
+                        "duration_ms": 20,
                         "timestamp": "2026-01-01T14:00:00",
                     }
                 ),
@@ -137,7 +137,7 @@ def repo_with_logs(test_repo: Path) -> Path:
                         "grammar": 'odd"name$[]',
                         "grammar_version": "ghi789",
                         "has_errors": False,
-                        "parse_time_ms": 7,
+                        "duration_ms": 7,
                         "timestamp": "2026-01-01T14:30:00",
                     }
                 ),
@@ -148,7 +148,7 @@ def repo_with_logs(test_repo: Path) -> Path:
                             "grammar": grammar,
                             "grammar_version": "xyz000",
                             "has_errors": False,
-                            "parse_time_ms": 8,
+                            "duration_ms": 8,
                             "timestamp": "2026-01-01T15:00:00",
                         }
                     )

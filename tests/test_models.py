@@ -49,8 +49,8 @@ class TestBuildLogEntry:
             commit="abc123",
             repo_url="https://github.com/tree-sitter/tree-sitter-python",
             so_path=Path("build/python.so"),
-            build_success=True,
-            build_time_ms=1234,
+            status="success",
+            duration_ms=1234,
             compiler="gcc",
             tree_sitter_version="0.21.0",
         )
@@ -66,8 +66,8 @@ class TestBuildLogEntry:
                 commit="abc123",
                 repo_url="https://github.com/tree-sitter/tree-sitter-python",
                 so_path=Path("build/python.so"),
-                build_success=True,
-                build_time_ms=1234,
+                status="success",
+                duration_ms=1234,
                 compiler="clang",
                 tree_sitter_version="0.21.0",
             )
@@ -82,7 +82,8 @@ class TestParseLogEntry:
             source_file=Path("tests/fixtures/sample.py"),
             node_count=42,
             has_errors=False,
-            parse_time_ms=12,
+            status="success",
+            duration_ms=12,
             root_node_type="module",
         )
 

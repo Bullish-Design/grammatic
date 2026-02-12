@@ -36,10 +36,10 @@ def summary_stats() -> None:
     print(f"Total parses: {len(parses)}")
 
     if builds:
-        success_rate = sum(1 for entry in builds if entry.get("build_success")) / len(builds) * 100
+        success_rate = sum(1 for entry in builds if entry.get("status") == "success") / len(builds) * 100
         print(f"Build success rate: {success_rate:.1f}%")
 
-        build_times = [int(entry["build_time_ms"]) for entry in builds]
+        build_times = [int(entry["duration_ms"]) for entry in builds]
         print(f"Avg build time: {mean(build_times):.1f}ms")
         print(f"Median build time: {median(build_times):.1f}ms")
 
@@ -47,7 +47,7 @@ def summary_stats() -> None:
         error_rate = sum(1 for entry in parses if entry.get("has_errors")) / len(parses) * 100
         print(f"Parse error rate: {error_rate:.1f}%")
 
-        parse_times = [int(entry["parse_time_ms"]) for entry in parses]
+        parse_times = [int(entry["duration_ms"]) for entry in parses]
         print(f"Avg parse time: {mean(parse_times):.1f}ms")
         print(f"Median parse time: {median(parse_times):.1f}ms")
 
@@ -75,7 +75,7 @@ def grammar_stats() -> None:
         print(f"  Parses: {len(current_parses)}")
 
         if current_builds:
-            success_rate = sum(1 for entry in current_builds if entry.get("build_success")) / len(current_builds) * 100
+            success_rate = sum(1 for entry in current_builds if entry.get("status") == "success") / len(current_builds) * 100
             print(f"  Build success rate: {success_rate:.1f}%")
 
         if current_parses:

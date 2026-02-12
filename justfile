@@ -165,7 +165,7 @@ query-parses N="10":
 query-failures:
     #!/usr/bin/env bash
     if [ -f "{{project_root}}/logs/parses.jsonl" ]; then
-        jq -c 'select(.has_errors == true)' "{{project_root}}/logs/parses.jsonl"
+        jq -c 'select(.status == "failure" or .has_errors == true)' "{{project_root}}/logs/parses.jsonl"
     fi
 
 query-parses-for GRAMMAR:
@@ -183,7 +183,7 @@ build-success-rate GRAMMAR:
         exit 0
     fi
     jq --arg grammar "$grammar" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/builds.jsonl" \
-        | jq -s 'group_by(.build_success) | map({success: .[0].build_success, count: length})'
+        | jq -s 'group_by(.status) | map({success: (.[0].status == "success"), count: length})'
 
 avg-parse-time GRAMMAR:
     #!/usr/bin/env bash
@@ -192,7 +192,7 @@ avg-parse-time GRAMMAR:
         exit 0
     fi
     jq --arg grammar "{{GRAMMAR}}" -c 'select(.grammar == $grammar)' "{{project_root}}/logs/parses.jsonl" \
-        | jq -s 'if length == 0 then 0 else (map(.parse_time_ms) | add / length) end'
+        | jq -s 'if length == 0 then 0 else (map(.duration_ms) | add / length) end'
 
 slowest-parses N="10":
     #!/usr/bin/env bash
@@ -201,7 +201,7 @@ slowest-parses N="10":
         exit 0
     fi
     jq -c '.' "{{project_root}}/logs/parses.jsonl" \
-        | jq -s "sort_by(.parse_time_ms) | reverse | .[:{{N}}]"
+        | jq -s "sort_by(.duration_ms) | reverse | .[:{{N}}]"
 
 grammar-versions GRAMMAR:
     #!/usr/bin/env bash
