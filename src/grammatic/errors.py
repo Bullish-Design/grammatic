@@ -22,21 +22,15 @@ class ToolMissingError(GrammaticError):
     """Raised when an expected tool binary is unavailable."""
 
 
-@dataclass(slots=True)
 class SubprocessExecutionError(GrammaticError):
     """Raised when a subprocess command fails."""
-
-    command: list[str]
-    returncode: int
-    stderr: str = ""
-    stdout: str = ""
 
     def __init__(self, *, command: list[str], returncode: int, stderr: str = "", stdout: str = "", message: str | None = None):
         self.command = command
         self.returncode = returncode
         self.stderr = stderr
         self.stdout = stdout
-        super().__init__(message or f"Command failed ({returncode}): {' '.join(command)}")
+        super().__init__(message=message or f"Command failed ({returncode}): {' '.join(command)}")
 
 
 class ArtifactMissingError(GrammaticError):

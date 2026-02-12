@@ -21,13 +21,13 @@ def _failure_details(exc: Exception) -> tuple[str, list[Diagnostic], str | None]
 
 def handle_parse(request: ParseRequest) -> ParseResult:
     started = now_ms()
-    layout, workspace = resolve_grammar_workspace(request.repo_root, request.grammar)
-
-    source = ensure_required_paths_for_parse(workspace, request.source)
-    ensure_tools_for_parse()
-    grammar_version = lookup_grammar_version(request.grammar, layout.builds_log)
 
     try:
+        layout, workspace = resolve_grammar_workspace(request.repo_root, request.grammar)
+        source = ensure_required_paths_for_parse(workspace, request.source)
+        ensure_tools_for_parse()
+        grammar_version = lookup_grammar_version(request.grammar, layout.builds_log)
+
         run_result = run_checked(
             ["tree-sitter", "parse", str(source), "--language", str(workspace.so_path), "--json"],
             message="tree-sitter parse failed",
@@ -73,6 +73,16 @@ def handle_parse(request: ParseRequest) -> ParseResult:
     except GrammaticError as exc:
         duration = now_ms() - started
         error_code, diagnostics, stderr_excerpt = _failure_details(exc)
+
+        # Ensure we have layout and workspace for logging, use defaults if early failure
+        try:
+            layout, workspace = resolve_grammar_workspace(request.repo_root, request.grammar)
+            grammar_version = lookup_grammar_version(request.grammar, layout.builds_log)
+            source = request.source.resolve() if request.source else None
+        except Exception:
+            # If we can't resolve workspace, we can't log - just re-raise original error
+            raise exc
+
         append_parse_event(
             layout,
             parse_event(

@@ -40,6 +40,7 @@ class TestGenerateWorkflow:
         """Generate creates parser.c in grammar source directory."""
         grammar_dir = test_repo / "grammars" / "test"
         grammar_dir.mkdir()
+        (grammar_dir / "src").mkdir()
 
         # Create minimal grammar.js
         grammar_js = grammar_dir / "grammar.js"
@@ -75,6 +76,7 @@ class TestDoctorWorkflow:
         """Doctor checks grammar structure and reports issues."""
         grammar_dir = test_repo / "grammars" / "incomplete"
         grammar_dir.mkdir()
+        (grammar_dir / "src").mkdir()
 
         # Create empty grammar.js (invalid)
         (grammar_dir / "grammar.js").touch()
@@ -88,6 +90,7 @@ class TestDoctorWorkflow:
         """Doctor verifies corpus test presence."""
         grammar_dir = test_repo / "grammars" / "test"
         grammar_dir.mkdir()
+        (grammar_dir / "src").mkdir()
 
         # Create minimal valid grammar
         (grammar_dir / "grammar.js").write_text(
@@ -114,6 +117,7 @@ class TestWorkspaceLayout:
         """Verify canonical build output paths."""
         grammar_dir = test_repo / "grammars" / "mygrammar"
         grammar_dir.mkdir()
+        (grammar_dir / "src").mkdir()
 
         (grammar_dir / "grammar.js").write_text(
             "module.exports = grammar({ name: 'mygrammar', rules: { source_file: $ => /.*/ } });"
@@ -131,6 +135,7 @@ class TestWorkspaceLayout:
         """Verify parser.c is generated in grammar/src/, not build/."""
         grammar_dir = test_repo / "grammars" / "test"
         grammar_dir.mkdir()
+        (grammar_dir / "src").mkdir()
 
         (grammar_dir / "grammar.js").write_text(
             "module.exports = grammar({ name: 'test', rules: { source_file: $ => /.*/ } });"

@@ -25,6 +25,7 @@ def setup_minimal_grammar(repo: Path, grammar_name: str = "minimal") -> Path:
     """Set up a minimal test grammar."""
     grammar_dir = repo / "grammars" / grammar_name
     grammar_dir.mkdir(parents=True, exist_ok=True)
+    (grammar_dir / "src").mkdir(exist_ok=True)
     shutil.copy(PROJECT_ROOT / "tests" / "fixtures" / "minimal_grammar" / "grammar.js", grammar_dir / "grammar.js")
 
     subprocess.run(["git", "init"], check=True, capture_output=True, cwd=grammar_dir)
