@@ -25,7 +25,7 @@ update-grammars:
 
 generate GRAMMAR:
     just check-dir "{{project_root}}/grammars/{{GRAMMAR}}" "Error: grammar directory not found: grammars/{{GRAMMAR}}"
-    tree-sitter generate --cwd "{{project_root}}/grammars/{{GRAMMAR}}"
+    tree-sitter generate "{{project_root}}/grammars/{{GRAMMAR}}/grammar.js" --output "{{project_root}}/build/{{GRAMMAR}}"
 
 build GRAMMAR: init
     #!/usr/bin/env bash
@@ -83,7 +83,7 @@ test-grammar GRAMMAR:
     #!/usr/bin/env bash
     corpus_dir="{{project_root}}/grammars/{{GRAMMAR}}/test/corpus"
     just check-dir "$corpus_dir" "Error: No corpus tests found for {{GRAMMAR}}"
-    tree-sitter test --cwd "{{project_root}}/grammars/{{GRAMMAR}}"
+    cd "{{project_root}}/grammars/{{GRAMMAR}}" && tree-sitter test --update && cd "{{project_root}}"
 
 test GRAMMAR: (build GRAMMAR)
     just parse "{{GRAMMAR}}" "{{project_root}}/tests/fixtures/sample_{{GRAMMAR}}.txt"
