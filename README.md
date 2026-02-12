@@ -63,6 +63,20 @@ Workflow orchestration lives in Python command handlers and is the source of tru
 
 `just` recipes are thin delegators. They should pass grammar-name-first inputs to Python entrypoints and avoid duplicating orchestration logic.
 
+## Developer UX Principles
+
+- Every workflow command should have a typed request object and typed result object.
+- Validation should be centralized in model validators and path services, not duplicated in shell snippets.
+- The CLI layer should only parse arguments and render errors/results.
+- The test strategy should map directly to model behavior and workflow behavior.
+
+| Operation | Typed request contract | Typed result contract |
+| --- | --- | --- |
+| `build` | `BuildRequest` (grammar name, workspace/build context) | `BuildResult` (status, artifact path, diagnostics, duration) |
+| `parse` | `ParseRequest` (grammar name, source path/content mode) | `ParseResult` (status, tree/output summary, diagnostics, duration) |
+| `doctor` | `DoctorRequest` (grammar name, checks/profile options) | `DoctorResult` (status, findings, recommendations, duration) |
+| `test-grammar` | `TestGrammarRequest` (grammar name, corpus/test options) | `TestGrammarResult` (status, pass/fail counts, diagnostics, duration) |
+
 ### Command and Exit Semantics
 
 Python handlers should implement a uniform exception taxonomy that maps to stable exit codes across commands.

@@ -106,6 +106,20 @@ Canonical shared-library output remains:
 build/python/python.so
 ```
 
+## Developer UX Principles
+
+- Every workflow command has a typed request object and a typed result object.
+- Validation is centralized in model validators/path services, not duplicated in shell snippets.
+- The CLI layer only parses args and renders errors/results.
+- Test strategy maps directly to model and workflow behavior.
+
+| Operation | Typed request contract | Typed result contract |
+| --- | --- | --- |
+| `build` | `BuildRequest` (grammar name + workspace/build context) | `BuildResult` (status, artifact path, diagnostics, duration) |
+| `parse` | `ParseRequest` (grammar name + source contract) | `ParseResult` (status, parse/tree output, diagnostics, duration) |
+| `doctor` | `DoctorRequest` (grammar name + check options) | `DoctorResult` (status, findings, recommendations, duration) |
+| `test-grammar` | `TestGrammarRequest` (grammar name + test options) | `TestGrammarResult` (status, pass/fail metrics, diagnostics, duration) |
+
 ## Testing-First Philosophy
 
 Testing is central, not optional:
