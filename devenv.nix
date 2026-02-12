@@ -15,16 +15,17 @@
 
   languages.python = {
     enable = true;
-    package = pkgs.python312;
+    version = "3.13";
     venv.enable = true;
     uv.enable = true;
   };
 
   env = {
-    GRAMMATIC_ROOT = builtins.toString ./.;
+    GRAMMATIC_ROOT = "./.";
   };
 
   enterShell = ''
+    echo
     echo "Grammatic development environment loaded"
     mkdir -p logs build grammars tests/fixtures schemas
   '';
