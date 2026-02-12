@@ -82,3 +82,4 @@ The canonical runtime is Python 3.13 + `uv`, with `just`, `tree-sitter`, compile
 - [CONCEPT.md](./CONCEPT.md) — distilled project concept and scope
 - [AGENTS.md](./AGENTS.md) — agent operating guidance
 - [skills/grammar-workshop/SKILL.md](./skills/grammar-workshop/SKILL.md) — reusable agent workflow skill
+- [skills/query-workshop/SKILL.md](./skills/query-workshop/SKILL.md) — reusable workflow for tree-sitter query (`.scm`) authoring and evaluation

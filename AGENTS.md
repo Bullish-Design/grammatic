@@ -89,3 +89,4 @@ De-prioritize:
 - [CONCEPT.md](./CONCEPT.md): core concept and scope
 - [README.md](./README.md): user-facing quick start and workflows
 - [skills/grammar-workshop/SKILL.md](./skills/grammar-workshop/SKILL.md): recommended agent workflow skill
+- [skills/query-workshop/SKILL.md](./skills/query-workshop/SKILL.md): recommended agent workflow skill for tree-sitter query (.scm) authoring
