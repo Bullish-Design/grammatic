@@ -32,7 +32,15 @@ module.exports = grammar({
 });
 EOG
 
-sed -i "s/__GRAMMAR_NAME__/$NAME/g" "$GRAMMAR_DIR/grammar.js"
+replace_placeholder() {
+    local target_file=$1
+    local tmp_file
+    tmp_file=$(mktemp)
+    sed "s/__GRAMMAR_NAME__/$NAME/g" "$target_file" > "$tmp_file"
+    mv "$tmp_file" "$target_file"
+}
+
+replace_placeholder "$GRAMMAR_DIR/grammar.js"
 
 cat <<'EOC' > "$GRAMMAR_DIR/test/corpus/basic.txt"
 ==================
@@ -80,7 +88,7 @@ just watch __GRAMMAR_NAME__
 ```
 EOR
 
-sed -i "s/__GRAMMAR_NAME__/$NAME/g" "$GRAMMAR_DIR/README.md"
+replace_placeholder "$GRAMMAR_DIR/README.md"
 
 echo "Created grammar template: grammars/$NAME"
 echo "Next: cd grammars/$NAME && tree-sitter generate"

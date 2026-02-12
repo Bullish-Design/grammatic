@@ -36,18 +36,21 @@ def lookup_grammar_version(grammar: str, builds_log_path: Path) -> str:
     if not builds_log_path.exists():
         return "unknown"
 
-    try:
-        lines = builds_log_path.read_text().splitlines()
-        for line in reversed(lines):
-            if not line.strip():
-                continue
-            entry = json.loads(line)
-            if entry.get("grammar") == grammar:
-                return str(entry.get("commit", "unknown"))
-    except Exception as exc:  # pragma: no cover - warning path only
-        print(f"Warning: Could not lookup grammar version: {exc}", file=sys.stderr)
+    latest_commit = "unknown"
 
-    return "unknown"
+    try:
+        with builds_log_path.open(encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                entry = json.loads(line)
+                if entry.get("grammar") == grammar:
+                    latest_commit = str(entry.get("commit", "unknown"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:  # pragma: no cover - warning path only
+        print(f"Warning: Could not lookup grammar version: {exc}", file=sys.stderr)
+        return "unknown"
+
+    return latest_commit
 
 
 def detect_compiler(grammar: str, project_root: Path) -> str:

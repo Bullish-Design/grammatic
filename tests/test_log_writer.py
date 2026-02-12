@@ -1,13 +1,20 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "log_writer.py"
+
+spec = importlib.util.spec_from_file_location("log_writer", SCRIPT)
+assert spec is not None and spec.loader is not None
+log_writer = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(log_writer)
 
 
 class TestLogWriter:

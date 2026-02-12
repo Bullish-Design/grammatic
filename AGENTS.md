@@ -73,7 +73,7 @@ tests/fixtures/  # Sample source files for parse testing
 ### Phase 1: Foundation (MVP)
 1. Create `devenv.nix` with tree-sitter, gcc, jq, git, just, uv, python
 2. Create Pydantic models (`src/grammatic/models.py`)
-3. Create build script (`scripts/build_grammar.sh`)
+3. Create build script (`scripts/build_grammar.py`)
 4. Create log writer (`scripts/log_writer.py`)
 5. Create justfile with core targets (init, add-grammar, build, parse)
 
