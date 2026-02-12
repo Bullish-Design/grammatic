@@ -10,6 +10,10 @@ import pytest
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 SPECIAL_GRAMMARS = ['quote"name', 'dollar$name', 'bracket[name]']
+BASE_BUILD_ENTRIES = 4
+BASE_PARSE_ENTRIES = 3
+TOTAL_BUILD_ENTRIES = BASE_BUILD_ENTRIES + len(SPECIAL_GRAMMARS)
+TOTAL_PARSE_ENTRIES = BASE_PARSE_ENTRIES + len(SPECIAL_GRAMMARS)
 
 
 def require_toolchain() -> None:
@@ -170,7 +174,7 @@ class TestLogQueries:
             cwd=repo_with_logs,
         )
         lines = result.stdout.strip().split("\n")
-        assert len(lines) == 4
+        assert len(lines) == TOTAL_BUILD_ENTRIES
 
     def test_query_builds_for_grammar(self, repo_with_logs: Path) -> None:
         result = subprocess.run(
@@ -239,7 +243,7 @@ class TestLogQueries:
         )
 
         lines = result.stdout.strip().split("\n")
-        assert len(lines) == 3
+        assert len(lines) == TOTAL_PARSE_ENTRIES
 
     def test_query_failures(self, repo_with_logs: Path) -> None:
         result = subprocess.run(
