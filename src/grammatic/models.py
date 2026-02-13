@@ -8,19 +8,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-
-class Diagnostic(BaseModel):
-    """Normalized diagnostic emitted by any workflow command."""
-
-    message: str = Field(min_length=1, description="Human-readable diagnostic message.")
-    severity: Literal["error", "warning", "info"] = Field(
-        description="Normalized severity level for diagnostic reporting."
-    )
-    code: str | None = Field(default=None, description="Optional stable machine-readable diagnostic code.")
-    remediation: str | None = Field(
-        default=None,
-        description="Optional actionable guidance describing how to remediate the issue.",
-    )
+from grammatic.contracts import Diagnostic
 
 
 class CommandExecutionMetadata(BaseModel):

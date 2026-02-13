@@ -78,7 +78,11 @@ def handle_parse(request: ParseRequest) -> ParseResult:
         try:
             layout, workspace = resolve_grammar_workspace(request.repo_root, request.grammar)
             grammar_version = lookup_grammar_version(request.grammar, layout.builds_log)
-            source = request.source.resolve() if request.source else None
+            # Handle source file that doesn't exist
+            try:
+                source = request.source.resolve()
+            except Exception:
+                source = request.source  # Use unresolved path if resolve fails
         except Exception:
             # If we can't resolve workspace, we can't log - just re-raise original error
             raise exc

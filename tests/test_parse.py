@@ -152,8 +152,8 @@ class TestCorpusTests:
 
     def test_run_corpus_tests(self, test_repo: Path) -> None:
         """Run corpus tests for a grammar with test corpus."""
-        from grammatic.contracts import GenerateRequest
-        from grammatic.workflows import handle_generate
+        from grammatic.contracts import BuildRequest, GenerateRequest
+        from grammatic.workflows import handle_build, handle_generate
 
         grammar_dir = setup_minimal_grammar(test_repo)
 
@@ -165,6 +165,7 @@ class TestCorpusTests:
         )
 
         handle_generate(GenerateRequest(grammar="minimal", repo_root=test_repo))
+        handle_build(BuildRequest(grammar="minimal", repo_root=test_repo))
 
         result = handle_test_grammar(TestGrammarRequest(grammar="minimal", repo_root=test_repo))
 
