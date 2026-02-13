@@ -93,7 +93,7 @@ class TestBuildWorkflow:
         assert result.compiler == "gcc"
 
     def test_scanner_grammar_build_cpp(self, test_repo: Path) -> None:
-        """Build grammar with C++ scanner."""
+        """Build grammar with C++ scanner by compiling parser.c as C and scanner.cc as C++."""
         setup_scanner_grammar(test_repo, "cpp")
 
         handle_generate(GenerateRequest(grammar="scanner_test", repo_root=test_repo))
@@ -102,6 +102,7 @@ class TestBuildWorkflow:
         assert result.status == "ok"
         assert result.artifact_path.exists()
         assert result.compiler == "g++"
+        assert result.artifact_path == test_repo / "build" / "scanner_test" / "scanner_test.so"
 
     def test_missing_parser_fails_gracefully(self, test_repo: Path) -> None:
         """Build fails with clear error when parser.c is missing."""
