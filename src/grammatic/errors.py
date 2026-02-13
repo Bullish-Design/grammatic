@@ -4,6 +4,17 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+SUBPROCESS_EXCERPT_LIMIT = 800
+
+
+def bounded_output_excerpt(stderr: str, stdout: str, *, limit: int = SUBPROCESS_EXCERPT_LIMIT) -> str:
+    """Return a bounded stderr excerpt, falling back to stdout when needed."""
+    text = (stderr or stdout or "").strip()
+    if len(text) <= limit:
+        return text
+    return f"{text[:limit].rstrip()}…"
+
+
 @dataclass(slots=True)
 class GrammaticError(Exception):
     """Base typed error for stable CLI diagnostics and exit-code mapping."""
@@ -30,7 +41,16 @@ class SubprocessExecutionError(GrammaticError):
         self.returncode = returncode
         self.stderr = stderr
         self.stdout = stdout
-        super().__init__(message=message or f"Command failed ({returncode}): {' '.join(command)}")
+        cmd_text = " ".join(command)
+        excerpt = bounded_output_excerpt(stderr, stdout)
+        detail = f"command={cmd_text}; return_code={returncode}"
+        if excerpt:
+            detail += f"; output={excerpt}"
+        prefix = message or "Subprocess command failed"
+        super().__init__(message=f"{prefix}. {detail}")
+
+    def excerpt(self, *, limit: int = SUBPROCESS_EXCERPT_LIMIT) -> str:
+        return bounded_output_excerpt(self.stderr, self.stdout, limit=limit)
 
 
 class ArtifactMissingError(GrammaticError):

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 
 from grammatic.contracts import Diagnostic, ParseRequest, ParseResult
-from grammatic.errors import GrammaticError, SubprocessExecutionError, ValidationError
+from grammatic.errors import GrammaticError, SubprocessExecutionError, ValidationError, bounded_output_excerpt
 from grammatic.event_logs import append_parse_event, parse_event
 from grammatic.preflight import ensure_required_paths_for_parse, ensure_tools_for_parse, resolve_grammar_workspace
 
@@ -13,10 +13,18 @@ from .common import count_nodes, has_errors, lookup_grammar_version, now_ms, run
 def _failure_details(exc: Exception) -> tuple[str, list[Diagnostic], str | None]:
     error_code = type(exc).__name__.upper()
     if isinstance(exc, SubprocessExecutionError):
-        excerpt = exc.stderr or exc.stdout or str(exc)
-    else:
-        excerpt = str(exc)
-    return error_code, [Diagnostic(level="error", message=str(exc))], excerpt[:400]
+        excerpt = exc.excerpt()
+        command = " ".join(exc.command)
+        diagnostics = [
+            Diagnostic(level="error", message=str(exc)),
+            Diagnostic(level="error", message=f"command: {command}"),
+        ]
+        if excerpt:
+            diagnostics.append(Diagnostic(level="error", message=f"output excerpt: {excerpt}"))
+        return error_code, diagnostics, excerpt
+
+    excerpt = bounded_output_excerpt(str(exc), "")
+    return error_code, [Diagnostic(level="error", message=str(exc))], excerpt
 
 
 def handle_parse(request: ParseRequest) -> ParseResult:

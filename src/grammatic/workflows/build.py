@@ -3,7 +3,13 @@ from __future__ import annotations
 import platform
 
 from grammatic.contracts import BuildRequest, BuildResult, Diagnostic
-from grammatic.errors import ArtifactMissingError, GrammaticError, SubprocessExecutionError, ValidationError
+from grammatic.errors import (
+    ArtifactMissingError,
+    GrammaticError,
+    SubprocessExecutionError,
+    ValidationError,
+    bounded_output_excerpt,
+)
 from grammatic.event_logs import append_build_event, build_event
 from grammatic.preflight import (
     ensure_required_paths_for_build,
@@ -34,11 +40,18 @@ def _resolve_git_metadata(workspace) -> tuple[str, str]:
 def _failure_diagnostic(exc: Exception) -> tuple[str, list[Diagnostic], str | None]:
     error_code = type(exc).__name__.upper()
     if isinstance(exc, SubprocessExecutionError):
-        excerpt = exc.stderr or exc.stdout or str(exc)
+        excerpt = exc.excerpt()
+        command = " ".join(exc.command)
+        diagnostics = [
+            Diagnostic(level="error", message=str(exc)),
+            Diagnostic(level="error", message=f"command: {command}"),
+        ]
+        if excerpt:
+            diagnostics.append(Diagnostic(level="error", message=f"output excerpt: {excerpt}"))
     else:
-        excerpt = str(exc)
-    diagnostics = [Diagnostic(level="error", message=str(exc))]
-    return error_code, diagnostics, excerpt[:400]
+        excerpt = bounded_output_excerpt(str(exc), "")
+        diagnostics = [Diagnostic(level="error", message=str(exc))]
+    return error_code, diagnostics, excerpt
 
 
 def handle_build(request: BuildRequest) -> BuildResult:
