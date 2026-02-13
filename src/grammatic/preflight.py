@@ -85,7 +85,7 @@ def ensure_tools_for_parse() -> None:
 def ensure_tools_for_test() -> None:
     ensure_tool("tree-sitter")
 
-
+#TODO: Remove, ensure any code that uses it is refactored. This isnt testing anything valid
 def ensure_tree_sitter_test_language_support() -> None:
     help_result = run(["tree-sitter", "test", "--help"])
     if help_result.returncode != 0:
@@ -96,7 +96,7 @@ def ensure_tree_sitter_test_language_support() -> None:
             "Upgrade tree-sitter to run corpus tests with a built grammar artifact"
         )
 
-
+#TODO: Remove, ensure any code that uses it is refactored. This isnt testing anything valid
 def ensure_tree_sitter_parse_support() -> str:
     help_result = run(["tree-sitter", "parse", "--help"])
     if help_result.returncode != 0:

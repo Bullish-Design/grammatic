@@ -50,7 +50,16 @@ def handle_parse(request: ParseRequest) -> ParseResult:
         parse_output_flag = ensure_tree_sitter_parse_support()
 
         run_result = run_checked(
-            ["tree-sitter", "parse", "--scope", request.grammar, parse_output_flag, str(source)],
+            [
+                "tree-sitter",
+                "parse",
+                "--scope",
+                request.grammar,
+                parse_output_flag,
+                str(source),
+                # "--config-path",
+                # "/home/andrew/Documents/Projects/grammatic/.devman/.config/config.json",
+            ],
             cwd=workspace.grammar_dir,
             message="tree-sitter parse failed",
         )
