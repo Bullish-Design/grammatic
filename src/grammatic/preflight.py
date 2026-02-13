@@ -91,3 +91,28 @@ def ensure_tree_sitter_test_language_support() -> None:
             "Current tree-sitter CLI does not support 'tree-sitter test --language'. "
             "Upgrade tree-sitter to run corpus tests with a built grammar artifact"
         )
+
+
+def ensure_tree_sitter_parse_support() -> str:
+    help_result = run(["tree-sitter", "parse", "--help"])
+    if help_result.returncode != 0:
+        raise ToolMissingError("Failed to inspect tree-sitter parse support via 'tree-sitter parse --help'")
+
+    help_text = help_result.stdout
+    missing_flags = [flag for flag in ("--lib-path", "--lang-name") if flag not in help_text]
+    if missing_flags:
+        formatted = ", ".join(missing_flags)
+        raise ValidationError(
+            f"Current tree-sitter CLI does not support required parse option(s): {formatted}. "
+            "Upgrade tree-sitter to parse with built grammar artifacts"
+        )
+
+    if "--json-summary" in help_text:
+        return "--json-summary"
+    if "-j" in help_text:
+        return "-j"
+
+    raise ValidationError(
+        "Current tree-sitter CLI does not support JSON parse output options ('--json-summary' / '-j'). "
+        "Upgrade tree-sitter to run structured parse output"
+    )

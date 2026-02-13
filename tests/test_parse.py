@@ -134,6 +134,36 @@ class TestParse:
         assert hasattr(result, "has_errors")
         assert isinstance(result.has_errors, bool)
 
+
+    def test_parse_uses_lib_path_lang_name_and_json_summary_flag(self, minimal_grammar_built: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Parse invokes tree-sitter with lib-path/lang-name and selected JSON flag."""
+        test_file = minimal_grammar_built / "test.txt"
+        test_file.write_text("hello\n")
+
+        captured: dict[str, list[str]] = {}
+
+        def fake_run_checked(cmd: list[str], cwd: Path | None = None, *, message: str | None = None) -> subprocess.CompletedProcess[str]:
+            captured["cmd"] = cmd
+            payload = {"root_node": {"type": "source_file", "children": []}}
+            return subprocess.CompletedProcess(cmd, 0, stdout=json.dumps(payload), stderr="")
+
+        monkeypatch.setattr("grammatic.workflows.parse.ensure_tree_sitter_parse_support", lambda: "--json-summary")
+        monkeypatch.setattr("grammatic.workflows.parse.run_checked", fake_run_checked)
+
+        result = handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=test_file))
+
+        assert result.status == "ok"
+        assert captured["cmd"] == [
+            "tree-sitter",
+            "parse",
+            str(test_file.resolve()),
+            "--lib-path",
+            str((minimal_grammar_built / "build" / "minimal" / "minimal.so").resolve()),
+            "--lang-name",
+            "minimal",
+            "--json-summary",
+        ]
+
     def test_parse_output_structure(self, minimal_grammar_built: Path) -> None:
         """Verify parse output has expected structure."""
         test_file = minimal_grammar_built / "test.txt"
@@ -203,3 +233,46 @@ class TestParseMetrics:
 
         assert result.node_count > 0
         assert isinstance(result.node_count, int)
+
+
+class TestParseCapabilityCheck:
+    """Test tree-sitter parse capability detection."""
+
+    def test_prefers_json_summary_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from grammatic import preflight
+
+        def fake_run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(
+                cmd,
+                0,
+                stdout="--lib-path\n--lang-name\n--json-summary\n-j\n",
+                stderr="",
+            )
+
+        monkeypatch.setattr(preflight, "run", fake_run)
+
+        assert preflight.ensure_tree_sitter_parse_support() == "--json-summary"
+
+    def test_falls_back_to_short_json_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from grammatic import preflight
+
+        def fake_run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="--lib-path\n--lang-name\n-j\n", stderr="")
+
+        monkeypatch.setattr(preflight, "run", fake_run)
+
+        assert preflight.ensure_tree_sitter_parse_support() == "-j"
+
+    def test_errors_when_required_parse_flags_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        from grammatic import preflight
+
+        def fake_run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(cmd, 0, stdout="-j\n", stderr="")
+
+        monkeypatch.setattr(preflight, "run", fake_run)
+
+        with pytest.raises(ValidationError) as exc_info:
+            preflight.ensure_tree_sitter_parse_support()
+
+        assert "--lib-path" in str(exc_info.value)
+        assert "--lang-name" in str(exc_info.value)
