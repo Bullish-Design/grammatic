@@ -5,7 +5,12 @@ import json
 from grammatic.contracts import Diagnostic, ParseRequest, ParseResult
 from grammatic.errors import GrammaticError, SubprocessExecutionError, ValidationError, bounded_output_excerpt
 from grammatic.event_logs import append_parse_event, parse_event
-from grammatic.preflight import ensure_required_paths_for_parse, ensure_tools_for_parse, resolve_grammar_workspace
+from grammatic.preflight import (
+    ensure_required_paths_for_parse,
+    ensure_tools_for_parse,
+    ensure_tree_sitter_parse_support,
+    resolve_grammar_workspace,
+)
 
 from .common import count_nodes, has_errors, lookup_grammar_version, now_ms, run_checked
 
@@ -35,9 +40,19 @@ def handle_parse(request: ParseRequest) -> ParseResult:
         source = ensure_required_paths_for_parse(workspace, request.source)
         ensure_tools_for_parse()
         grammar_version = lookup_grammar_version(request.grammar, layout.builds_log)
+        json_flag = ensure_tree_sitter_parse_support()
 
         run_result = run_checked(
-            ["tree-sitter", "parse", str(source), "--language", str(workspace.so_path), "--json"],
+            [
+                "tree-sitter",
+                "parse",
+                str(source),
+                "--lib-path",
+                str(workspace.so_path),
+                "--lang-name",
+                request.grammar,
+                json_flag,
+            ],
             message="tree-sitter parse failed",
         )
         duration = now_ms() - started
