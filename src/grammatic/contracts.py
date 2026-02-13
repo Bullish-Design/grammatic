@@ -58,11 +58,15 @@ class ParseResult(BaseModel):
 
 
 class TestGrammarRequest(BaseModel):
+    __test__ = False
+
     grammar: str = Field(min_length=1)
     repo_root: Path
 
 
 class TestGrammarResult(BaseModel):
+    __test__ = False
+
     status: Literal["ok", "error"]
     grammar: str
     duration_ms: int = Field(ge=0)
