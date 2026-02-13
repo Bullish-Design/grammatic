@@ -71,7 +71,11 @@ def ensure_tools_for_generate() -> None:
 
 
 def ensure_tools_for_build(workspace: GrammarWorkspace) -> None:
-    ensure_tool("g++" if (workspace.src_dir / "scanner.cc").is_file() else "gcc")
+    if (workspace.src_dir / "scanner.cc").is_file():
+        ensure_tool("gcc")
+        ensure_tool("g++")
+        return
+    ensure_tool("gcc")
 
 
 def ensure_tools_for_parse() -> None:

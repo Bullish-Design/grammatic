@@ -61,7 +61,8 @@ def handle_build(request: BuildRequest) -> BuildResult:
     parser_c = workspace.src_dir / "parser.c"
     scanner_cc = workspace.src_dir / "scanner.cc"
     scanner_c = workspace.src_dir / "scanner.c"
-    compiler = "g++" if scanner_cc.is_file() else "gcc"
+    has_cpp_scanner = scanner_cc.is_file()
+    compiler = "g++" if has_cpp_scanner else "gcc"
     scanner = scanner_cc if scanner_cc.is_file() else scanner_c if scanner_c.is_file() else None
 
     ensure_tools_for_build(workspace)
@@ -72,29 +73,77 @@ def handle_build(request: BuildRequest) -> BuildResult:
 
         workspace.build_dir.mkdir(parents=True, exist_ok=True)
 
-        cmd = [
-            compiler,
-            platform_ldflag(),
-            "-fPIC",
-            "-O2",
-            f"-I{workspace.src_dir}",
-            str(parser_c),
-        ]
-        if scanner is not None:
-            cmd.append(str(scanner))
-        cmd.extend(["-o", str(workspace.so_path)])
+        if has_cpp_scanner:
+            parser_obj = workspace.build_dir / "parser.o"
+            scanner_obj = workspace.build_dir / "scanner.o"
 
-        run_result = run_checked(cmd, message=f"Failed to build grammar '{request.grammar}'")
+            parser_result = run_checked(
+                [
+                    "gcc",
+                    "-fPIC",
+                    "-O2",
+                    f"-I{workspace.src_dir}",
+                    "-c",
+                    str(parser_c),
+                    "-o",
+                    str(parser_obj),
+                ],
+                message=f"Failed to compile parser for grammar '{request.grammar}'",
+            )
+            scanner_result = run_checked(
+                [
+                    "g++",
+                    "-fPIC",
+                    "-O2",
+                    f"-I{workspace.src_dir}",
+                    "-c",
+                    str(scanner_cc),
+                    "-o",
+                    str(scanner_obj),
+                ],
+                message=f"Failed to compile scanner for grammar '{request.grammar}'",
+            )
+            link_result = run_checked(
+                [
+                    "g++",
+                    platform_ldflag(),
+                    str(parser_obj),
+                    str(scanner_obj),
+                    "-o",
+                    str(workspace.so_path),
+                ],
+                message=f"Failed to link grammar '{request.grammar}'",
+            )
+            stdouts = [parser_result.stdout.strip(), scanner_result.stdout.strip(), link_result.stdout.strip()]
+            stderrs = [parser_result.stderr.strip(), scanner_result.stderr.strip(), link_result.stderr.strip()]
+        else:
+            cmd = [
+                compiler,
+                platform_ldflag(),
+                "-fPIC",
+                "-O2",
+                f"-I{workspace.src_dir}",
+                str(parser_c),
+            ]
+            if scanner is not None:
+                cmd.append(str(scanner))
+            cmd.extend(["-o", str(workspace.so_path)])
+
+            run_result = run_checked(cmd, message=f"Failed to build grammar '{request.grammar}'")
+            stdouts = [run_result.stdout.strip()]
+            stderrs = [run_result.stderr.strip()]
         duration = now_ms() - started
 
         if not workspace.so_path.is_file():
             raise ArtifactMissingError(f"Build completed but expected artifact is missing: {workspace.so_path}")
 
         diagnostics: list[Diagnostic] = []
-        if run_result.stdout.strip():
-            diagnostics.append(Diagnostic(level="info", message=run_result.stdout.strip()))
-        if run_result.stderr.strip():
-            diagnostics.append(Diagnostic(level="info", message=run_result.stderr.strip()))
+        for stdout in stdouts:
+            if stdout:
+                diagnostics.append(Diagnostic(level="info", message=stdout))
+        for stderr in stderrs:
+            if stderr:
+                diagnostics.append(Diagnostic(level="info", message=stderr))
 
         append_build_event(
             layout,
@@ -139,4 +188,3 @@ def handle_build(request: BuildRequest) -> BuildResult:
             ),
         )
         raise
-
