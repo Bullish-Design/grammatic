@@ -148,7 +148,6 @@ class TestParse:
             payload = "<source_file><line /></source_file>"
             return subprocess.CompletedProcess(cmd, 0, stdout=payload, stderr="")
 
-        monkeypatch.setattr("grammatic.workflows.parse.ensure_tree_sitter_parse_support", lambda: "-x")
         monkeypatch.setattr("grammatic.workflows.parse.run_checked", fake_run_checked)
 
         result = handle_parse(ParseRequest(grammar="minimal", repo_root=minimal_grammar_built, source=test_file))
@@ -233,35 +232,3 @@ class TestParseMetrics:
 
         assert result.node_count > 0
         assert isinstance(result.node_count, int)
-
-
-class TestParseCapabilityCheck:
-    """Test tree-sitter parse capability detection."""
-
-    def test_supports_xml_flag(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from grammatic import preflight
-
-        def fake_run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-            return subprocess.CompletedProcess(
-                cmd,
-                0,
-                stdout="-x\n--xml\n",
-                stderr="",
-            )
-
-        monkeypatch.setattr(preflight, "run", fake_run)
-
-        assert preflight.ensure_tree_sitter_parse_support() == "-x"
-
-    def test_errors_when_xml_parse_flag_missing(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        from grammatic import preflight
-
-        def fake_run(cmd: list[str], cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
-            return subprocess.CompletedProcess(cmd, 0, stdout="--scope\n", stderr="")
-
-        monkeypatch.setattr(preflight, "run", fake_run)
-
-        with pytest.raises(ValidationError) as exc_info:
-            preflight.ensure_tree_sitter_parse_support()
-
-        assert "--xml" in str(exc_info.value)

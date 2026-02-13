@@ -4,7 +4,6 @@ from grammatic.contracts import Diagnostic, TestGrammarRequest, TestGrammarResul
 from grammatic.preflight import (
     ensure_required_paths_for_test,
     ensure_tools_for_test,
-    ensure_tree_sitter_test_language_support,
     resolve_grammar_workspace,
 )
 
@@ -17,7 +16,6 @@ def handle_test_grammar(request: TestGrammarRequest) -> TestGrammarResult:
 
     ensure_required_paths_for_test(workspace)
     ensure_tools_for_test()
-    ensure_tree_sitter_test_language_support()
 
     test_result = run_checked(
         ["tree-sitter", "test", "--language", str(workspace.so_path)],
