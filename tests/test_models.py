@@ -149,7 +149,7 @@ class TestWorkflowContracts:
 
         paths = WorkflowPaths(repo_root=repo_root, grammar="toy")
         execution = CommandExecutionMetadata(duration_ms=10, command_line=["tree-sitter", "generate"])
-        diagnostic = Diagnostic(message="ok", severity="info")
+        diagnostic = Diagnostic(message="ok", level="info")
 
         generate_result = GenerateResult(
             status="success",
@@ -212,7 +212,7 @@ class TestWorkflowContracts:
             status="success",
             paths=paths,
             execution=execution,
-            diagnostics=[Diagnostic(message="Recovered parse error", severity="warning", remediation="Fix token")],
+            diagnostics=[Diagnostic(message="Recovered parse error", level="warning")],
             source_file=(repo_root / "sample.txt"),
             node_count=2,
             has_errors=True,
@@ -227,7 +227,7 @@ class TestWorkflowContracts:
             status="failure",
             paths=paths,
             execution=CommandExecutionMetadata(duration_ms=7, command_line=["just", "doctor", "toy"]),
-            diagnostics=[Diagnostic(message="Missing parser", severity="error", code="MISSING_PARSER")],
+            diagnostics=[Diagnostic(message="Missing parser", level="error")],
             findings=["Parser not generated"],
         )
         assert doctor_result.findings == ["Parser not generated"]

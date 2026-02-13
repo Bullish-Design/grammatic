@@ -108,6 +108,9 @@ class TestBuildWorkflow:
         grammar_dir = test_repo / "grammars" / "missing_parser"
         (grammar_dir / "src").mkdir(parents=True)
 
+        # Create grammar.js so workspace validation passes
+        (grammar_dir / "grammar.js").write_text("module.exports = grammar({name: 'missing_parser', rules: {}});")
+
         with pytest.raises(ArtifactMissingError) as exc_info:
             handle_build(BuildRequest(grammar="missing_parser", repo_root=test_repo))
 
