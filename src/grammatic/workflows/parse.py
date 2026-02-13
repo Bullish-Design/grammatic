@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import json
+import xml.etree.ElementTree as ET
 
 from grammatic.contracts import Diagnostic, ParseRequest, ParseResult
 from grammatic.errors import GrammaticError, SubprocessExecutionError, ValidationError, bounded_output_excerpt
@@ -13,6 +13,13 @@ from grammatic.preflight import (
 )
 
 from .common import count_nodes, has_errors, lookup_grammar_version, now_ms, run_checked
+
+
+def _xml_node_to_dict(node: ET.Element) -> dict:
+    return {
+        "type": node.tag,
+        "children": [_xml_node_to_dict(child) for child in list(node)],
+    }
 
 
 def _failure_details(exc: Exception) -> tuple[str, list[Diagnostic], str | None]:
@@ -40,27 +47,21 @@ def handle_parse(request: ParseRequest) -> ParseResult:
         source = ensure_required_paths_for_parse(workspace, request.source)
         ensure_tools_for_parse()
         grammar_version = lookup_grammar_version(request.grammar, layout.builds_log)
-        json_flag = ensure_tree_sitter_parse_support()
+        parse_output_flag = ensure_tree_sitter_parse_support()
 
         run_result = run_checked(
-            [
-                "tree-sitter",
-                "parse",
-                str(source),
-                "--lib-path",
-                str(workspace.so_path),
-                "--lang-name",
-                request.grammar,
-                json_flag,
-            ],
+            ["tree-sitter", "parse", "--scope", request.grammar, parse_output_flag, str(source)],
+            cwd=workspace.grammar_dir,
             message="tree-sitter parse failed",
         )
         duration = now_ms() - started
 
         try:
-            output = json.loads(run_result.stdout)
-        except json.JSONDecodeError as exc:
-            raise ValidationError("Parse output is not valid JSON") from exc
+            xml_root = ET.fromstring(run_result.stdout)
+        except ET.ParseError as exc:
+            raise ValidationError("Parse output is not valid XML") from exc
+
+        output = {"root_node": _xml_node_to_dict(xml_root)}
 
         if not isinstance(output, dict) or not isinstance(output.get("root_node"), dict):
             raise ValidationError("Parse output is missing root_node")

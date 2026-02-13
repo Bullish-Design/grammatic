@@ -103,20 +103,10 @@ def ensure_tree_sitter_parse_support() -> str:
         raise ToolMissingError("Failed to inspect tree-sitter parse support via 'tree-sitter parse --help'")
 
     help_text = help_result.stdout
-    missing_flags = [flag for flag in ("--lib-path", "--lang-name") if flag not in help_text]
-    if missing_flags:
-        formatted = ", ".join(missing_flags)
-        raise ValidationError(
-            f"Current tree-sitter CLI does not support required parse option(s): {formatted}. "
-            "Upgrade tree-sitter to parse with built grammar artifacts"
-        )
-
-    if "--json-summary" in help_text:
-        return "--json-summary"
-    if "-j" in help_text:
-        return "-j"
+    if "-x" in help_text or "--xml" in help_text:
+        return "-x"
 
     raise ValidationError(
-        "Current tree-sitter CLI does not support JSON parse output options ('--json-summary' / '-j'). "
+        "Current tree-sitter CLI does not support XML parse output option ('-x' / '--xml'). "
         "Upgrade tree-sitter to run structured parse output"
     )
