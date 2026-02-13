@@ -4,9 +4,9 @@ from pathlib import Path
 
 from pydantic import ValidationError as PydanticValidationError
 
-from grammatic.errors import ArtifactMissingError, ToolMissingError, ValidationError
+from grammatic.errors import ArtifactMissingError, ValidationError
 from grammatic.workspace import GrammarWorkspace, WorkshopLayout
-from grammatic.workflows.common import ensure_tool, run
+from grammatic.workflows.common import ensure_tool
 
 
 def resolve_workshop_layout(repo_root: Path) -> WorkshopLayout:
@@ -84,29 +84,3 @@ def ensure_tools_for_parse() -> None:
 
 def ensure_tools_for_test() -> None:
     ensure_tool("tree-sitter")
-
-#TODO: Remove, ensure any code that uses it is refactored. This isnt testing anything valid
-def ensure_tree_sitter_test_language_support() -> None:
-    help_result = run(["tree-sitter", "test", "--help"])
-    if help_result.returncode != 0:
-        raise ToolMissingError("Failed to inspect tree-sitter test support via 'tree-sitter test --help'")
-    if "--language" not in help_result.stdout:
-        raise ValidationError(
-            "Current tree-sitter CLI does not support 'tree-sitter test --language'. "
-            "Upgrade tree-sitter to run corpus tests with a built grammar artifact"
-        )
-
-#TODO: Remove, ensure any code that uses it is refactored. This isnt testing anything valid
-def ensure_tree_sitter_parse_support() -> str:
-    help_result = run(["tree-sitter", "parse", "--help"])
-    if help_result.returncode != 0:
-        raise ToolMissingError("Failed to inspect tree-sitter parse support via 'tree-sitter parse --help'")
-
-    help_text = help_result.stdout
-    if "-x" in help_text or "--xml" in help_text:
-        return "-x"
-
-    raise ValidationError(
-        "Current tree-sitter CLI does not support XML parse output option ('-x' / '--xml'). "
-        "Upgrade tree-sitter to run structured parse output"
-    )

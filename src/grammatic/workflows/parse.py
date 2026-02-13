@@ -8,7 +8,6 @@ from grammatic.event_logs import append_parse_event, parse_event
 from grammatic.preflight import (
     ensure_required_paths_for_parse,
     ensure_tools_for_parse,
-    ensure_tree_sitter_parse_support,
     resolve_grammar_workspace,
 )
 
@@ -47,7 +46,6 @@ def handle_parse(request: ParseRequest) -> ParseResult:
         source = ensure_required_paths_for_parse(workspace, request.source)
         ensure_tools_for_parse()
         grammar_version = lookup_grammar_version(request.grammar, layout.builds_log)
-        parse_output_flag = ensure_tree_sitter_parse_support()
 
         run_result = run_checked(
             [
@@ -55,7 +53,7 @@ def handle_parse(request: ParseRequest) -> ParseResult:
                 "parse",
                 "--scope",
                 request.grammar,
-                parse_output_flag,
+                "-x",
                 str(source),
                 # "--config-path",
                 # "/home/andrew/Documents/Projects/grammatic/.devman/.config/config.json",
